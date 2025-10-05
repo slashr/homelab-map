@@ -1,0 +1,250 @@
+.stats-panel {
+  width: 320px;
+  height: 100%;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 1000;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Custom scrollbar for dark mode */
+.stats-panel.dark::-webkit-scrollbar {
+  width: 8px;
+}
+
+.stats-panel.dark::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.stats-panel.dark::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.stats-panel.dark::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Custom scrollbar for light mode */
+.stats-panel.light::-webkit-scrollbar {
+  width: 8px;
+}
+
+.stats-panel.light::-webkit-scrollbar-track {
+  background: #f0f0f0;
+}
+
+.stats-panel.light::-webkit-scrollbar-thumb {
+  background: #c0c0c0;
+  border-radius: 4px;
+}
+
+.stats-panel.light::-webkit-scrollbar-thumb:hover {
+  background: #a0a0a0;
+}
+
+.stats-panel.dark {
+  background: #1e1e1e;
+  color: #e0e0e0;
+}
+
+.stats-panel.light {
+  background: #ffffff;
+  color: #333;
+}
+
+.stats-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.stats-panel.dark .stats-section h2 {
+  color: #ffffff;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.stats-panel.light .stats-section h2 {
+  color: #333;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.stats-section h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  padding-bottom: 0.5rem;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 8px;
+  color: white;
+}
+
+.stat-card.online {
+  background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+}
+
+.stat-card.offline {
+  background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+}
+
+.stat-icon {
+  font-size: 2rem;
+}
+
+.stat-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+.metric-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.metric-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #666;
+}
+
+.metric-value {
+  color: #333;
+  font-weight: 600;
+}
+
+.stats-panel.dark .progress-bar {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.stats-panel.light .progress-bar {
+  background: #f0f0f0;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.3s ease;
+}
+
+.progress-fill.cpu {
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+}
+
+.progress-fill.memory {
+  background: linear-gradient(90deg, #f093fb 0%, #f5576c 100%);
+}
+
+.progress-fill.disk {
+  background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.stats-panel.dark .provider-item {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.stats-panel.light .provider-item {
+  background: #f8f9fa;
+}
+
+.provider-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.provider-name {
+  font-weight: 500;
+  color: #555;
+  text-transform: capitalize;
+}
+
+.provider-count {
+  background: #667eea;
+  color: white;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.nodes-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.stats-panel.dark .node-item {
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 4px solid #555;
+}
+
+.stats-panel.light .node-item {
+  background: #f8f9fa;
+  border-left: 4px solid #ccc;
+}
+
+.node-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.node-item.status-online {
+  border-left-color: #4caf50;
+}
+
+.node-item.status-warning {
+  border-left-color: #ff9800;
+}
+
+.node-item.status-offline {
+  border-left-color: #f44336;
+}
+
+.node-name {
+  font-weight: 500;
+  color: #333;
+}
+
+.node-status {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #666;
+}

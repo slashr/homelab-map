@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  aggregator:
+    build:
+      context: ./aggregator
+      dockerfile: Dockerfile
+    container_name: homelab-map-aggregator
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - homelab-map
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: homelab-map-frontend
+    ports:
+      - "3000:80"
+    environment:
+      - REACT_APP_AGGREGATOR_URL=http://localhost:8000
+    depends_on:
+      - aggregator
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - homelab-map
+
+networks:
+  homelab-map:
+    driver: bridge
