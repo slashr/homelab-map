@@ -123,16 +123,30 @@
   gap: 0.4rem;
 }
 
+.stats-panel.dark .metric-label {
+  color: #bbb;
+}
+
+.stats-panel.light .metric-label {
+  color: #666;
+}
+
 .metric-label {
   display: flex;
   justify-content: space-between;
   font-size: 0.9rem;
   font-weight: 500;
-  color: #666;
+}
+
+.stats-panel.dark .metric-value {
+  color: #ffffff;
+}
+
+.stats-panel.light .metric-value {
+  color: #333;
 }
 
 .metric-value {
-  color: #333;
   font-weight: 600;
 }
 
@@ -186,9 +200,16 @@
   font-size: 0.9rem;
 }
 
+.stats-panel.dark .provider-name {
+  color: #e0e0e0;
+}
+
+.stats-panel.light .provider-name {
+  color: #555;
+}
+
 .provider-name {
   font-weight: 500;
-  color: #555;
   text-transform: capitalize;
 }
 
@@ -202,8 +223,7 @@
 }
 
 .nodes-list {
-  max-height: 400px;
-  overflow-y: auto;
+  /* No max-height, let the parent panel handle scrolling */
 }
 
 .stats-panel.dark .node-item {
@@ -237,14 +257,28 @@
   border-left-color: #f44336;
 }
 
+.stats-panel.dark .node-name {
+  color: #e0e0e0;
+}
+
+.stats-panel.light .node-name {
+  color: #333;
+}
+
 .node-name {
   font-weight: 500;
-  color: #333;
+}
+
+.stats-panel.dark .node-status {
+  color: #aaa;
+}
+
+.stats-panel.light .node-status {
+  color: #666;
 }
 
 .node-status {
   font-size: 0.75rem;
   text-transform: uppercase;
   font-weight: 600;
-  color: #666;
 }

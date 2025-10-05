@@ -82,8 +82,17 @@
   min-width: 90px;
 }
 
-.popup-row code {
+.node-popup.dark .popup-row code {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e0e0e0;
+}
+
+.node-popup.light .popup-row code {
   background: #f5f5f5;
+  color: #333;
+}
+
+.popup-row code {
   padding: 2px 6px;
   border-radius: 3px;
   font-size: 0.85rem;
