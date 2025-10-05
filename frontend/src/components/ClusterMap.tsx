@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
+import React, { useEffect, useRef, useState } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, GeoJSON } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import { Node } from '../types';
@@ -103,6 +103,48 @@ interface ClusterMapProps {
   darkMode: boolean;
 }
 
+// Component to highlight countries where nodes are located
+const CountryHighlights: React.FC<{ nodes: Node[], darkMode: boolean }> = ({ nodes, darkMode }) => {
+  const [geoData, setGeoData] = useState<any>(null);
+  
+  useEffect(() => {
+    // Fetch world countries GeoJSON
+    fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
+      .then(res => res.json())
+      .then(data => setGeoData(data))
+      .catch(err => console.error('Failed to load country data:', err));
+  }, []);
+  
+  if (!geoData || nodes.length === 0) return null;
+  
+  // Determine which countries have nodes
+  const countriesWithNodes = new Set<string>();
+  nodes.forEach(node => {
+    if (node.location?.includes('Germany')) {
+      countriesWithNodes.add('Germany');
+    }
+    if (node.location?.includes('CA') || node.location?.includes('IA') || 
+        node.location?.includes('California') || node.location?.includes('Iowa')) {
+      countriesWithNodes.add('United States of America');
+    }
+  });
+  
+  const style = (feature: any) => {
+    const countryName = feature.properties.ADMIN || feature.properties.name;
+    const isHighlighted = countriesWithNodes.has(countryName);
+    
+    return {
+      fillColor: isHighlighted ? (darkMode ? '#667eea' : '#4285F4') : 'transparent',
+      fillOpacity: isHighlighted ? 0.15 : 0,
+      color: isHighlighted ? (darkMode ? '#667eea' : '#4285F4') : 'transparent',
+      weight: isHighlighted ? 2 : 0,
+      opacity: isHighlighted ? 0.5 : 0,
+    };
+  };
+  
+  return <GeoJSON data={geoData} style={style} />;
+};
+
 // Component to fit map bounds to all markers (only on first load)
 const FitBounds: React.FC<{ nodes: Node[] }> = ({ nodes }) => {
   const map = useMap();
@@ -146,6 +188,10 @@ const ClusterMap: React.FC<ClusterMapProps> = ({ nodes, darkMode }) => {
       >
         {/* Automatically fit bounds to show all nodes */}
         <FitBounds nodes={nodesWithLocation} />
+        
+        {/* Highlight countries with nodes */}
+        <CountryHighlights nodes={nodesWithLocation} darkMode={darkMode} />
+        
         {/* Conditionally render dark or light map tiles */}
         {darkMode ? (
           <TileLayer
