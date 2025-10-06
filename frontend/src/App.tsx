@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import ClusterMap from './components/ClusterMap';
 import StatsPanel from './components/StatsPanel';
-import { Node, ClusterStats } from './types';
+import { Node, ClusterStats, Connection } from './types';
 import './App.css';
 
 // Use relative path in production (behind ingress), or env var for local dev
@@ -13,6 +13,7 @@ const REFRESH_INTERVAL = 10000; // 10 seconds
 function App() {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [stats, setStats] = useState<ClusterStats | null>(null);
+  const [connections, setConnections] = useState<Connection[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -29,13 +30,15 @@ function App() {
 
   const fetchData = async () => {
     try {
-      const [nodesResponse, statsResponse] = await Promise.all([
+      const [nodesResponse, statsResponse, connectionsResponse] = await Promise.all([
         axios.get(`${AGGREGATOR_URL}/api/nodes`),
-        axios.get(`${AGGREGATOR_URL}/api/stats`)
+        axios.get(`${AGGREGATOR_URL}/api/stats`),
+        axios.get(`${AGGREGATOR_URL}/api/connections`)
       ]);
 
       setNodes(nodesResponse.data);
       setStats(statsResponse.data);
+      setConnections(connectionsResponse.data);
       setError(null);
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -78,7 +81,7 @@ function App() {
       
       <div className="app-content">
         <StatsPanel stats={stats} nodes={nodes} darkMode={darkMode} />
-        <ClusterMap nodes={nodes} darkMode={darkMode} />
+        <ClusterMap nodes={nodes} connections={connections} darkMode={darkMode} />
       </div>
     </div>
   );

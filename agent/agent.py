@@ -8,6 +8,8 @@ import os
 import socket
 import time
 import logging
+import subprocess
+import statistics
 import requests
 import psutil
 from kubernetes import client, config
@@ -140,17 +142,127 @@ def send_to_aggregator(data):
         logger.error(f"Failed to send data to aggregator: {e}")
 
 
+def measure_latency(target_ip: str, count: int = 3) -> dict:
+    """Measure latency to a target IP using ping"""
+    try:
+        # Use ping command (works on Linux)
+        result = subprocess.run(
+            ['ping', '-c', str(count), '-W', '2', target_ip],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if result.returncode == 0:
+            # Parse ping output for latency statistics
+            output = result.stdout
+            
+            # Try to extract min/avg/max from ping output
+            # Example line: "rtt min/avg/max/mdev = 0.123/0.456/0.789/0.012 ms"
+            for line in output.split('\n'):
+                line_lower = line.lower()
+                if 'min/avg/max' in line_lower or ('rtt' in line_lower and '/' in line):
+                    # Extract the numbers
+                    if '=' in line:
+                        parts = line.split('=')
+                        if len(parts) > 1:
+                            # Get the stats part before any units
+                            stats_str = parts[1].strip().split()[0]
+                            stats = stats_str.split('/')
+                            if len(stats) >= 3:
+                                try:
+                                    return {
+                                        'min_ms': float(stats[0]),
+                                        'avg_ms': float(stats[1]),
+                                        'max_ms': float(stats[2]),
+                                        'reachable': True
+                                    }
+                                except ValueError:
+                                    pass
+            
+            # Fallback: just report as reachable if ping succeeded
+            logger.warning(f"Could not parse ping stats for {target_ip}, marking as reachable with 0ms")
+            return {'avg_ms': 0.0, 'reachable': True}
+        else:
+            logger.warning(f"Ping to {target_ip} failed with return code {result.returncode}")
+            return {'reachable': False}
+            
+    except Exception as e:
+        logger.error(f"Failed to measure latency to {target_ip}: {e}")
+        return {'reachable': False}
+
+
+def get_other_nodes() -> list:
+    """Get list of other nodes in the cluster"""
+    try:
+        config.load_incluster_config()
+        v1 = client.CoreV1Api()
+        
+        nodes = v1.list_node()
+        other_nodes = []
+        
+        for node in nodes.items:
+            if node.metadata.name != NODE_NAME:
+                # Get internal IP
+                addresses = {addr.type: addr.address for addr in node.status.addresses}
+                internal_ip = addresses.get('InternalIP')
+                
+                if internal_ip:
+                    other_nodes.append({
+                        'name': node.metadata.name,
+                        'ip': internal_ip
+                    })
+        
+        return other_nodes
+        
+    except Exception as e:
+        logger.error(f"Error getting other nodes: {e}")
+        return []
+
+
+def measure_connections():
+    """Measure network latency to all other nodes"""
+    other_nodes = get_other_nodes()
+    connections = []
+    
+    logger.info(f"Measuring connections to {len(other_nodes)} other nodes...")
+    
+    for node in other_nodes:
+        latency = measure_latency(node['ip'])
+        
+        if latency.get('reachable'):
+            connections.append({
+                'target_node': node['name'],
+                'target_ip': node['ip'],
+                'latency_ms': latency.get('avg_ms', 0),
+                'min_ms': latency.get('min_ms', 0),
+                'max_ms': latency.get('max_ms', 0),
+            })
+            logger.info(f"  → {node['name']}: {latency.get('avg_ms', 0):.2f}ms")
+    
+    return connections
+
+
 def main():
     """Main agent loop"""
     logger.info(f"Starting Homelab K3s Agent on {NODE_NAME}")
     logger.info(f"Aggregator URL: {AGGREGATOR_URL}")
     logger.info(f"Report interval: {REPORT_INTERVAL}s")
     
+    connection_check_counter = 0
+    CONNECTION_CHECK_INTERVAL = 5  # Measure connections every 5 reports (2.5 minutes)
+    
     while True:
         try:
             # Collect node information
             node_data = get_node_info()
             node_data['timestamp'] = time.time()
+            
+            # Measure network connections periodically (less frequent than node data)
+            connection_check_counter += 1
+            if connection_check_counter >= CONNECTION_CHECK_INTERVAL:
+                node_data['connections'] = measure_connections()
+                connection_check_counter = 0
             
             # Send to aggregator
             send_to_aggregator(node_data)

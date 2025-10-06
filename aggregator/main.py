@@ -36,9 +36,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory storage for node data (can be replaced with Redis/DB later)
+# In-memory storage for node data and connections
 nodes_data: Dict[str, dict] = {}
+connections_data: Dict[str, list] = {}  # Key: source_node, Value: list of connections
 NODE_TIMEOUT = 120  # Consider node offline if no update in 2 minutes
+
+
+class Connection(BaseModel):
+    """Network connection data between nodes"""
+    target_node: str
+    target_ip: str
+    latency_ms: float
+    min_ms: Optional[float] = None
+    max_ms: Optional[float] = None
 
 
 class NodeData(BaseModel):
@@ -60,6 +70,7 @@ class NodeData(BaseModel):
     memory_percent: Optional[float] = None
     disk_percent: Optional[float] = None
     network_interfaces: Optional[List[str]] = None
+    connections: Optional[List[Connection]] = None
     timestamp: float = Field(default_factory=time.time)
 
 
@@ -99,9 +110,15 @@ async def receive_node_data(node: NodeData):
         node_dict = node.model_dump()
         node_dict['received_at'] = time.time()
         
+        # Store node data
         nodes_data[node.name] = node_dict
         
-        logger.info(f"Received data from node: {node.name}")
+        # Store connection data separately if provided
+        if node.connections:
+            connections_data[node.name] = node.connections
+            logger.info(f"Received data from node: {node.name} with {len(node.connections)} connections")
+        else:
+            logger.info(f"Received data from node: {node.name}")
         
         return {
             "status": "success",
@@ -186,6 +203,45 @@ async def remove_node(node_name: str):
     return {"status": "success", "message": f"Node {node_name} removed"}
 
 
+@app.get("/api/connections")
+async def get_all_connections():
+    """Get network connections between all nodes"""
+    try:
+        # Build a list of all connections with source and target info
+        all_connections = []
+        
+        for source_node, connections in connections_data.items():
+            if source_node in nodes_data:
+                source_info = nodes_data[source_node]
+                
+                for conn in connections:
+                    # Convert Connection object to dict if needed
+                    if hasattr(conn, 'model_dump'):
+                        conn_dict = conn.model_dump()
+                    elif isinstance(conn, dict):
+                        conn_dict = conn
+                    else:
+                        conn_dict = dict(conn)
+                    
+                    all_connections.append({
+                        'source_node': source_node,
+                        'source_lat': source_info.get('lat'),
+                        'source_lon': source_info.get('lon'),
+                        'target_node': conn_dict.get('target_node'),
+                        'target_lat': nodes_data.get(conn_dict.get('target_node'), {}).get('lat'),
+                        'target_lon': nodes_data.get(conn_dict.get('target_node'), {}).get('lon'),
+                        'latency_ms': conn_dict.get('latency_ms', 0),
+                        'min_ms': conn_dict.get('min_ms'),
+                        'max_ms': conn_dict.get('max_ms'),
+                    })
+        
+        return all_connections
+        
+    except Exception as e:
+        logger.error(f"Error getting connections: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/stats")
 async def get_cluster_stats():
     """Get aggregated cluster statistics"""
@@ -222,6 +278,7 @@ async def get_cluster_stats():
             "avg_memory_percent": round(total_memory / online_nodes, 2) if online_nodes > 0 else 0,
             "avg_disk_percent": round(total_disk / online_nodes, 2) if online_nodes > 0 else 0,
             "providers": providers,
+            "total_connections": len(connections_data),
             "timestamp": datetime.utcnow().isoformat()
         }
         
