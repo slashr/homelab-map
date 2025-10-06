@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, GeoJSON } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
-import { Node } from '../types';
+import { Node, Connection } from '../types';
+import ConnectionLines from './ConnectionLines';
 import './ClusterMap.css';
 
 // Fix for default marker icons in React Leaflet
@@ -100,6 +101,7 @@ const getMarkerIcon = (nodeName: string, status: string) => {
 
 interface ClusterMapProps {
   nodes: Node[];
+  connections: Connection[];
   darkMode: boolean;
 }
 
@@ -170,7 +172,7 @@ const FitBounds: React.FC<{ nodes: Node[] }> = ({ nodes }) => {
   return null;
 };
 
-const ClusterMap: React.FC<ClusterMapProps> = ({ nodes, darkMode }) => {
+const ClusterMap: React.FC<ClusterMapProps> = ({ nodes, connections, darkMode }) => {
   // Filter nodes that have location data
   const nodesWithLocation = nodes.filter(node => node.lat && node.lon);
 
@@ -191,6 +193,9 @@ const ClusterMap: React.FC<ClusterMapProps> = ({ nodes, darkMode }) => {
         
         {/* Highlight countries with nodes */}
         <CountryHighlights nodes={nodesWithLocation} darkMode={darkMode} />
+        
+        {/* Draw connection lines between nodes */}
+        <ConnectionLines connections={connections} darkMode={darkMode} />
         
         {/* Conditionally render dark or light map tiles */}
         {darkMode ? (

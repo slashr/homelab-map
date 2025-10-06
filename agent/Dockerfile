@@ -2,13 +2,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install build dependencies for psutil
+# Install build dependencies for psutil and networking tools
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     make \
     libc6-dev \
+    iputils-ping \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies

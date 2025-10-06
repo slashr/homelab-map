@@ -15,6 +15,18 @@ export interface Node {
   kubelet_version?: string;
 }
 
+export interface Connection {
+  source_node: string;
+  source_lat: number;
+  source_lon: number;
+  target_node: string;
+  target_lat: number;
+  target_lon: number;
+  latency_ms: number;
+  min_ms?: number;
+  max_ms?: number;
+}
+
 export interface ClusterStats {
   total_nodes: number;
   online_nodes: number;
@@ -23,5 +35,6 @@ export interface ClusterStats {
   avg_memory_percent: number;
   avg_disk_percent: number;
   providers: Record<string, number>;
+  total_connections?: number;
   timestamp: string;
 }
