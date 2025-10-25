@@ -218,12 +218,30 @@ const FitBounds: React.FC<{ nodes: Node[] }> = ({ nodes }) => {
 };
 
 const ClusterMap: React.FC<ClusterMapProps> = ({ nodes, connections, darkMode }) => {
-  // Filter nodes that have location data
-  const nodesWithLocation = nodes.filter(node => node.lat && node.lon);
+  // Filter nodes that have valid location data (including NaN check)
+  const nodesWithLocation = nodes.filter(node => 
+    node.lat != null && 
+    node.lon != null && 
+    !isNaN(node.lat) && 
+    !isNaN(node.lon) &&
+    isFinite(node.lat) &&
+    isFinite(node.lon)
+  );
 
   // Default center (world view)
   const center: [number, number] = [20, 0]; // Center of the world
   const zoom = 2; // Global view
+
+  // Don't render map if we have no valid nodes
+  if (nodesWithLocation.length === 0) {
+    return (
+      <div className="cluster-map">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+          <p>No nodes with location data available</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="cluster-map">

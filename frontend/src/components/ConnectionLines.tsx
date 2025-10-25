@@ -42,10 +42,23 @@ const ConnectionLines: React.FC<ConnectionLinesProps> = ({ connections, darkMode
     curvesRef.current.forEach(curve => map.removeLayer(curve));
     curvesRef.current.clear();
 
-    // Filter out connections without coordinates
+    // Filter out connections without valid coordinates (including NaN check)
     const validConnections = connections.filter(
-      conn => conn.source_lat && conn.source_lon && conn.target_lat && conn.target_lon
+      conn => 
+        conn.source_lat != null && 
+        conn.source_lon != null && 
+        conn.target_lat != null && 
+        conn.target_lon != null &&
+        !isNaN(conn.source_lat) &&
+        !isNaN(conn.source_lon) &&
+        !isNaN(conn.target_lat) &&
+        !isNaN(conn.target_lon)
     );
+
+    // Skip if no valid connections
+    if (validConnections.length === 0) {
+      return;
+    }
 
     // Draw curved lines for each connection using bezier approximation
     validConnections.forEach((conn) => {
