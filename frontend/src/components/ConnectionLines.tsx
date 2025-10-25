@@ -37,15 +37,28 @@ const ConnectionLines: React.FC<ConnectionLinesProps> = ({ connections, darkMode
   const map = useMap();
   const curvesRef = React.useRef<Map<string, L.Polyline>>(new Map());
 
-  // Filter out connections without coordinates
-  const validConnections = connections.filter(
-    conn => conn.source_lat && conn.source_lon && conn.target_lat && conn.target_lon
-  );
-
   useEffect(() => {
     // Clear existing curves
     curvesRef.current.forEach(curve => map.removeLayer(curve));
     curvesRef.current.clear();
+
+    // Filter out connections without valid coordinates (including NaN check)
+    const validConnections = connections.filter(
+      conn => 
+        conn.source_lat != null && 
+        conn.source_lon != null && 
+        conn.target_lat != null && 
+        conn.target_lon != null &&
+        !isNaN(conn.source_lat) &&
+        !isNaN(conn.source_lon) &&
+        !isNaN(conn.target_lat) &&
+        !isNaN(conn.target_lon)
+    );
+
+    // Skip if no valid connections
+    if (validConnections.length === 0) {
+      return;
+    }
 
     // Draw curved lines for each connection using bezier approximation
     validConnections.forEach((conn) => {
@@ -60,6 +73,11 @@ const ConnectionLines: React.FC<ConnectionLinesProps> = ({ connections, darkMode
       const dx = end[1] - start[1];
       const dy = end[0] - start[0];
       const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      // Skip connections where nodes are at the same location (distance = 0 would cause NaN)
+      if (distance === 0 || !isFinite(distance)) {
+        return;
+      }
       
       // Offset amount (15% of distance for nice curve)
       const offsetFactor = 0.15 * distance;
@@ -167,7 +185,7 @@ const ConnectionLines: React.FC<ConnectionLinesProps> = ({ connections, darkMode
       curvesRef.current.forEach(curve => map.removeLayer(curve));
       curvesRef.current.clear();
     };
-  }, [validConnections, darkMode, hoveredConnection, map]);
+  }, [connections, darkMode, map]);
 
   return null;
 };
