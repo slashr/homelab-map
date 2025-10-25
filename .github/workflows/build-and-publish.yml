@@ -8,12 +8,51 @@ on:
 
 env:
   REGISTRY: ${{ vars.REGISTRY != '' && vars.REGISTRY || 'docker.io/dawker' }}
-  VERSION: ${{ vars.VERSION != '' && vars.VERSION || 'latest' }}
   PLATFORMS: ${{ vars.PLATFORMS != '' && vars.PLATFORMS || 'linux/amd64,linux/arm64' }}
 
 jobs:
+  create-tag:
+    runs-on: self-hosted
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.bump-version.outputs.new_tag }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine next tag
+        id: bump-version
+        run: |
+          git fetch --tags --force
+          latest_tag=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+          if [[ -z "$latest_tag" ]]; then
+            new_tag="v1.0.0"
+          elif [[ "$latest_tag" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            major="${BASH_REMATCH[1]}"
+            minor="${BASH_REMATCH[2]}"
+            patch="${BASH_REMATCH[3]}"
+            patch=$((patch + 1))
+            new_tag="v${major}.${minor}.${patch}"
+          else
+            echo "Latest tag '$latest_tag' does not match expected format vMAJOR.MINOR.PATCH" >&2
+            exit 1
+          fi
+          echo "New tag: $new_tag"
+          echo "new_tag=$new_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        run: |
+          git tag "${{ steps.bump-version.outputs.new_tag }}"
+          git push origin "${{ steps.bump-version.outputs.new_tag }}"
+
   build-and-push:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    needs: create-tag
+    env:
+      VERSION: ${{ needs.create-tag.outputs.tag }}
     strategy:
       matrix:
         include:
