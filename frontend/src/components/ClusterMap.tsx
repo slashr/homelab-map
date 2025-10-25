@@ -112,6 +112,36 @@ const WORLD_BOUNDS: LatLngBoundsExpression = [
   [85, 180],
 ];
 
+const clampToRange = (value: number, min: number, max: number) => {
+  return Math.max(min, Math.min(max, value));
+};
+
+const SingleWorldView: React.FC = () => {
+  const map = useMap();
+
+  useEffect(() => {
+    map.setMaxBounds(WORLD_BOUNDS);
+
+    const keepWithinWorld = () => {
+      const center = map.getCenter();
+      const clampedLat = clampToRange(center.lat, -85, 85);
+      const clampedLng = clampToRange(center.lng, -180, 180);
+
+      if (center.lat !== clampedLat || center.lng !== clampedLng) {
+        map.setView([clampedLat, clampedLng], map.getZoom(), { animate: false });
+      }
+    };
+
+    map.on('moveend', keepWithinWorld);
+
+    return () => {
+      map.off('moveend', keepWithinWorld);
+    };
+  }, [map]);
+
+  return null;
+};
+
 // Component to highlight countries where nodes are located
 const CountryHighlights: React.FC<{ nodes: Node[], darkMode: boolean }> = ({ nodes, darkMode }) => {
   const [geoData, setGeoData] = useState<any>(null);
@@ -199,7 +229,8 @@ const ClusterMap: React.FC<ClusterMapProps> = ({ nodes, connections, darkMode })
         minZoom={2}
         worldCopyJump={false}
       >
-        {/* Automatically fit bounds to show all nodes */}
+        {/* Limit view to a single world copy and fit bounds to nodes */}
+        <SingleWorldView />
         <FitBounds nodes={nodesWithLocation} />
         
         {/* Highlight countries with nodes */}
