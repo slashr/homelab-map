@@ -14,6 +14,8 @@ echo "Version: $VERSION"
 echo "Platforms: $PLATFORMS"
 echo ""
 
+export KUBECONFIG=~/.kube/michael
+
 # Ensure buildx is set up
 if ! docker buildx ls | grep -q multiarch; then
     echo "🔧 Creating buildx instance for multi-arch builds..."
