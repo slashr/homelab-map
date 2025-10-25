@@ -70,6 +70,7 @@
   display: flex;
   position: relative;
   overflow: hidden;
+  min-height: 0; /* Allows flex children to shrink below their content size */
 }
 
 .loading-container {
