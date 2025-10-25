@@ -11,7 +11,7 @@ env:
   PLATFORMS: ${{ vars.PLATFORMS != '' && vars.PLATFORMS || 'linux/amd64,linux/arm64' }}
 
 jobs:
-  create-tag:
+  determine-tag:
     runs-on: self-hosted
     permissions:
       contents: write
@@ -43,16 +43,11 @@ jobs:
           echo "New tag: $new_tag"
           echo "new_tag=$new_tag" >> "$GITHUB_OUTPUT"
 
-      - name: Create and push tag
-        run: |
-          git tag "${{ steps.bump-version.outputs.new_tag }}"
-          git push origin "${{ steps.bump-version.outputs.new_tag }}"
-
   build-and-push:
     runs-on: self-hosted
-    needs: create-tag
+    needs: determine-tag
     env:
-      VERSION: ${{ needs.create-tag.outputs.tag }}
+      VERSION: ${{ needs.determine-tag.outputs.tag }}
     strategy:
       matrix:
         include:
@@ -108,3 +103,22 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ matrix.image }}:${{ env.VERSION }}
             ${{ env.REGISTRY }}/${{ matrix.image }}:${{ github.sha }}
+
+  push-tag:
+    runs-on: self-hosted
+    needs:
+      - determine-tag
+      - build-and-push
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push tag after successful build
+        run: |
+          git fetch --tags --force
+          git tag "${{ needs.determine-tag.outputs.tag }}"
+          git push origin "${{ needs.determine-tag.outputs.tag }}"
