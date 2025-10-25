@@ -153,16 +153,24 @@ const SingleWorldView: React.FC = () => {
 // Component to highlight countries where nodes are located
 const CountryHighlights: React.FC<{ nodes: Node[], darkMode: boolean }> = ({ nodes, darkMode }) => {
   const [geoData, setGeoData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
     // Fetch world countries GeoJSON
+    setIsLoading(true);
     fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
       .then(res => res.json())
-      .then(data => setGeoData(data))
-      .catch(err => console.error('Failed to load country data:', err));
+      .then(data => {
+        setGeoData(data);
+        setIsLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to load country data:', err);
+        setIsLoading(false);
+      });
   }, []);
   
-  if (!geoData || nodes.length === 0) return null;
+  if (isLoading || !geoData || nodes.length === 0) return null;
   
   // Determine which countries have nodes
   const countriesWithNodes = new Set<string>();
@@ -200,17 +208,30 @@ const FitBounds: React.FC<{ nodes: Node[] }> = ({ nodes }) => {
   useEffect(() => {
     // Only fit bounds once when nodes first load, not on every refresh
     if (nodes.length > 0 && !hasFitted.current) {
-      const bounds = L.latLngBounds(
-        nodes.map(node => [node.lat!, node.lon!] as [number, number])
-      );
+      // Validate all coordinates before creating bounds
+      const validCoords = nodes
+        .filter(node => 
+          node.lat != null && 
+          node.lon != null && 
+          !isNaN(node.lat) && 
+          !isNaN(node.lon) &&
+          isFinite(node.lat) &&
+          isFinite(node.lon)
+        )
+        .map(node => [node.lat!, node.lon!] as [number, number]);
       
-      // Fit bounds with padding
-      map.fitBounds(bounds, {
-        padding: [50, 50],
-        maxZoom: 6, // Don't zoom in too close
-      });
-      
-      hasFitted.current = true;
+      // Only fit bounds if we have valid coordinates
+      if (validCoords.length > 0) {
+        const bounds = L.latLngBounds(validCoords);
+        
+        // Fit bounds with padding
+        map.fitBounds(bounds, {
+          padding: [50, 50],
+          maxZoom: 6, // Don't zoom in too close
+        });
+        
+        hasFitted.current = true;
+      }
     }
   }, [nodes, map]);
   
