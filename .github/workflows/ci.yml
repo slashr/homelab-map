@@ -6,10 +6,6 @@ on:
       - main
   pull_request:
 
-jobs:
-  tests:
-    runs-on: self-hosted
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
