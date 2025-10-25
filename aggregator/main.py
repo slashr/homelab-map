@@ -6,8 +6,8 @@ Receives data from agents and serves to frontend
 
 import time
 import logging
-from typing import Dict, List, Optional
-from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,6 +35,63 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# =============================================================================
+# Location metadata
+# =============================================================================
+# Keep this in sync with the agent so the frontend can fall back gracefully when
+# an agent cannot provide coordinates. These values provide coarse placement for
+# the cartoon markers on the map and do not need to be exact.
+HOME_LOCATION = {
+    'city': 'Berlin, Germany',
+    'lat': 52.5200,
+    'lon': 13.4050,
+}
+
+CLOUD_LOCATIONS = {
+    'oracle': {
+        'location': 'San Jose, CA (Oracle US-West)',
+        'lat': 37.3382,
+        'lon': -121.8863,
+    },
+    'gcp': {
+        'location': 'Council Bluffs, IA (GCP us-central1)',
+        'lat': 41.2619,
+        'lon': -95.8608,
+    },
+}
+
+NODE_LOCATIONS = {
+    'michael-pi': {**HOME_LOCATION, 'location': f"{HOME_LOCATION['city']} (Home)", 'provider': 'raspberry-pi'},
+    'jim-pi': {**HOME_LOCATION, 'location': f"{HOME_LOCATION['city']} (Home)", 'provider': 'raspberry-pi'},
+    'dwight-pi': {**HOME_LOCATION, 'location': f"{HOME_LOCATION['city']} (Home)", 'provider': 'raspberry-pi'},
+    'angela-amd2': {**CLOUD_LOCATIONS['oracle'], 'provider': 'oracle'},
+    'stanley-arm1': {**CLOUD_LOCATIONS['oracle'], 'provider': 'oracle'},
+    'phyllis-arm2': {**CLOUD_LOCATIONS['oracle'], 'provider': 'oracle'},
+    'toby-gcp1': {**CLOUD_LOCATIONS['gcp'], 'provider': 'gcp'},
+}
+
+
+def apply_location_defaults(node_payload: Dict[str, Any]) -> None:
+    """Populate missing location metadata using known node defaults."""
+
+    node_name = node_payload.get('name')
+    if not node_name:
+        return
+
+    defaults = NODE_LOCATIONS.get(node_name)
+    if not defaults:
+        return
+
+    if node_payload.get('lat') is None:
+        node_payload['lat'] = defaults.get('lat')
+    if node_payload.get('lon') is None:
+        node_payload['lon'] = defaults.get('lon')
+    if not node_payload.get('location') and defaults.get('location'):
+        node_payload['location'] = defaults['location']
+    if not node_payload.get('provider') and defaults.get('provider'):
+        node_payload['provider'] = defaults['provider']
+
 
 # In-memory storage for node data and connections
 nodes_data: Dict[str, dict] = {}
@@ -109,7 +166,10 @@ async def receive_node_data(node: NodeData):
     try:
         node_dict = node.model_dump()
         node_dict['received_at'] = time.time()
-        
+
+        # Populate fallback location metadata when an agent cannot provide it.
+        apply_location_defaults(node_dict)
+
         # Store node data
         nodes_data[node.name] = node_dict
         

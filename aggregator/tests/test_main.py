@@ -54,6 +54,23 @@ async def test_receive_node_data_stores_payload_and_connections() -> None:
 
 
 @pytest.mark.anyio
+async def test_receive_node_data_populates_known_location_defaults() -> None:
+    node = main.NodeData(
+        name="dwight-pi",
+        hostname="dwight.local",
+    )
+
+    await main.receive_node_data(node)
+
+    stored = main.nodes_data["dwight-pi"]
+    defaults = main.NODE_LOCATIONS["dwight-pi"]
+    assert stored["lat"] == pytest.approx(defaults["lat"])
+    assert stored["lon"] == pytest.approx(defaults["lon"])
+    assert stored["location"] == defaults["location"]
+    assert stored["provider"] == defaults["provider"]
+
+
+@pytest.mark.anyio
 async def test_get_all_nodes_reports_statuses_based_on_last_seen(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
