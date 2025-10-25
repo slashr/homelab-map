@@ -10,6 +10,11 @@ env:
   REGISTRY: ${{ vars.REGISTRY != '' && vars.REGISTRY || 'docker.io/dawker' }}
   PLATFORMS: ${{ vars.PLATFORMS != '' && vars.PLATFORMS || 'linux/amd64,linux/arm64' }}
 
+concurrency:
+  # Serialise runs per branch so version tags are reserved before the next build starts
+  group: build-and-publish-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   determine-tag:
     runs-on: self-hosted
