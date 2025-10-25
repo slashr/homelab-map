@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, GeoJSON } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
-import L from 'leaflet';
+import L, { LatLngBoundsExpression } from 'leaflet';
 import { Node, Connection } from '../types';
 import ConnectionLines from './ConnectionLines';
 import './ClusterMap.css';
@@ -107,6 +107,11 @@ interface ClusterMapProps {
   darkMode: boolean;
 }
 
+const WORLD_BOUNDS: LatLngBoundsExpression = [
+  [-85, -180],
+  [85, 180],
+];
+
 // Component to highlight countries where nodes are located
 const CountryHighlights: React.FC<{ nodes: Node[], darkMode: boolean }> = ({ nodes, darkMode }) => {
   const [geoData, setGeoData] = useState<any>(null);
@@ -189,6 +194,10 @@ const ClusterMap: React.FC<ClusterMapProps> = ({ nodes, connections, darkMode })
         zoom={zoom}
         scrollWheelZoom={true}
         style={{ height: '100%', width: '100%' }}
+        maxBounds={WORLD_BOUNDS}
+        maxBoundsViscosity={1.0}
+        minZoom={2}
+        worldCopyJump={false}
       >
         {/* Automatically fit bounds to show all nodes */}
         <FitBounds nodes={nodesWithLocation} />
@@ -206,6 +215,8 @@ const ClusterMap: React.FC<ClusterMapProps> = ({ nodes, connections, darkMode })
             url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
             subdomains='abcd'
             maxZoom={20}
+            noWrap={true}
+            bounds={WORLD_BOUNDS}
           />
         ) : (
           <TileLayer
@@ -213,6 +224,8 @@ const ClusterMap: React.FC<ClusterMapProps> = ({ nodes, connections, darkMode })
             url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
             subdomains='abcd'
             maxZoom={20}
+            noWrap={true}
+            bounds={WORLD_BOUNDS}
           />
         )}
         
