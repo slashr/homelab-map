@@ -37,15 +37,17 @@ const getFallbackAvatar = (nodeName: string): string => {
   const characterNames: Record<string, string> = {
     'michael': 'Michael+Scott',
     'jim': 'Jim+Halpert',
+    'dwight': 'Dwight+Schrute',
     'angela': 'Angela+Martin',
     'stanley': 'Stanley+Hudson',
     'phyllis': 'Phyllis+Vance',
     'toby': 'Toby+Flenderson',
   };
-  
+
   const characterColors: Record<string, string> = {
     'michael': '667eea',
     'jim': '4285F4',
+    'dwight': 'FFC107',
     'angela': '9c27b0',
     'stanley': 'ff9800',
     'phyllis': '4caf50',

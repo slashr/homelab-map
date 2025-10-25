@@ -56,6 +56,7 @@ NODE_LOCATIONS = {
     # Raspberry Pi nodes (at home)
     'michael-pi': {**HOME_LOCATION, 'location': f"{HOME_LOCATION['city']} (Home)", 'provider': 'raspberry-pi'},
     'jim-pi': {**HOME_LOCATION, 'location': f"{HOME_LOCATION['city']} (Home)", 'provider': 'raspberry-pi'},
+    'dwight-pi': {**HOME_LOCATION, 'location': f"{HOME_LOCATION['city']} (Home)", 'provider': 'raspberry-pi'},
     
     # Oracle Cloud nodes (San Jose datacenter)
     'angela-amd2': {**CLOUD_LOCATIONS['oracle'], 'provider': 'oracle'},
