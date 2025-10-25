@@ -37,15 +37,15 @@ const ConnectionLines: React.FC<ConnectionLinesProps> = ({ connections, darkMode
   const map = useMap();
   const curvesRef = React.useRef<Map<string, L.Polyline>>(new Map());
 
-  // Filter out connections without coordinates
-  const validConnections = connections.filter(
-    conn => conn.source_lat && conn.source_lon && conn.target_lat && conn.target_lon
-  );
-
   useEffect(() => {
     // Clear existing curves
     curvesRef.current.forEach(curve => map.removeLayer(curve));
     curvesRef.current.clear();
+
+    // Filter out connections without coordinates
+    const validConnections = connections.filter(
+      conn => conn.source_lat && conn.source_lon && conn.target_lat && conn.target_lon
+    );
 
     // Draw curved lines for each connection using bezier approximation
     validConnections.forEach((conn) => {
@@ -167,7 +167,7 @@ const ConnectionLines: React.FC<ConnectionLinesProps> = ({ connections, darkMode
       curvesRef.current.forEach(curve => map.removeLayer(curve));
       curvesRef.current.clear();
     };
-  }, [validConnections, darkMode, hoveredConnection, map]);
+  }, [connections, darkMode, map]);
 
   return null;
 };
