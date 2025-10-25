@@ -118,11 +118,18 @@ const clampToRange = (value: number, min: number, max: number) => {
 
 const SingleWorldView: React.FC = () => {
   const map = useMap();
+  const isInitialized = useRef(false);
 
   useEffect(() => {
-    map.setMaxBounds(WORLD_BOUNDS);
+    // Allow initial positioning before enforcing bounds
+    const timer = setTimeout(() => {
+      isInitialized.current = true;
+    }, 1000);
 
     const keepWithinWorld = () => {
+      // Only enforce bounds after initialization
+      if (!isInitialized.current) return;
+
       const center = map.getCenter();
       const clampedLat = clampToRange(center.lat, -85, 85);
       const clampedLng = clampToRange(center.lng, -180, 180);
@@ -135,6 +142,7 @@ const SingleWorldView: React.FC = () => {
     map.on('moveend', keepWithinWorld);
 
     return () => {
+      clearTimeout(timer);
       map.off('moveend', keepWithinWorld);
     };
   }, [map]);
@@ -224,9 +232,8 @@ const ClusterMap: React.FC<ClusterMapProps> = ({ nodes, connections, darkMode })
         zoom={zoom}
         scrollWheelZoom={true}
         style={{ height: '100%', width: '100%' }}
-        maxBounds={WORLD_BOUNDS}
-        maxBoundsViscosity={1.0}
         minZoom={2}
+        maxZoom={18}
         worldCopyJump={false}
       >
         {/* Limit view to a single world copy and fit bounds to nodes */}
