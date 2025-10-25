@@ -74,6 +74,11 @@ const ConnectionLines: React.FC<ConnectionLinesProps> = ({ connections, darkMode
       const dy = end[0] - start[0];
       const distance = Math.sqrt(dx * dx + dy * dy);
       
+      // Skip connections where nodes are at the same location (distance = 0 would cause NaN)
+      if (distance === 0 || !isFinite(distance)) {
+        return;
+      }
+      
       // Offset amount (15% of distance for nice curve)
       const offsetFactor = 0.15 * distance;
       const perpX = -dy / distance * offsetFactor;
