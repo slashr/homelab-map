@@ -18,9 +18,9 @@ on:
 
 env:
   REGISTRY: ${{ vars.REGISTRY != '' && vars.REGISTRY || 'docker.io/dawker' }}
-  APP_MANIFESTS_REPO: ${{ vars.APP_MANIFESTS_REPO != '' && vars.APP_MANIFESTS_REPO || '' }}
-  APP_MANIFESTS_BRANCH: ${{ vars.APP_MANIFESTS_BRANCH != '' && vars.APP_MANIFESTS_BRANCH || 'main' }}
-  APP_MANIFESTS_SERVICES: ${{ vars.APP_MANIFESTS_SERVICES != '' && vars.APP_MANIFESTS_SERVICES || 'agent,aggregator,frontend' }}
+  HOMELAB_DEPLOYMENTS_REPO: ${{ vars.HOMELAB_DEPLOYMENTS_REPO != '' && vars.HOMELAB_DEPLOYMENTS_REPO || '' }}
+  HOMELAB_DEPLOYMENTS_BRANCH: ${{ vars.HOMELAB_DEPLOYMENTS_BRANCH != '' && vars.HOMELAB_DEPLOYMENTS_BRANCH || 'main' }}
+  HOMELAB_DEPLOYMENTS_SERVICES: ${{ vars.HOMELAB_DEPLOYMENTS_SERVICES != '' && vars.HOMELAB_DEPLOYMENTS_SERVICES || 'agent,aggregator,frontend' }}
 
 jobs:
   prepare-release:
@@ -124,11 +124,11 @@ jobs:
       version: ${{ needs.prepare-release.outputs.version }}
     secrets: inherit
 
-  update-app-manifests:
+  update-homelab-deployments:
     needs:
       - prepare-release
       - build-and-push
-    if: vars.APP_MANIFESTS_REPO != '' && needs.prepare-release.outputs.version != ''
+    if: vars.HOMELAB_DEPLOYMENTS_REPO != '' && needs.prepare-release.outputs.version != ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -136,38 +136,38 @@ jobs:
     env:
       VERSION: ${{ needs.prepare-release.outputs.version }}
       REGISTRY: ${{ vars.REGISTRY != '' && vars.REGISTRY || 'docker.io/dawker' }}
-      APP_MANIFESTS_REPO: ${{ vars.APP_MANIFESTS_REPO != '' && vars.APP_MANIFESTS_REPO || '' }}
-      APP_MANIFESTS_BRANCH: ${{ vars.APP_MANIFESTS_BRANCH != '' && vars.APP_MANIFESTS_BRANCH || 'main' }}
-      APP_MANIFESTS_SERVICES: ${{ vars.APP_MANIFESTS_SERVICES != '' && vars.APP_MANIFESTS_SERVICES || 'agent,aggregator,frontend' }}
+      HOMELAB_DEPLOYMENTS_REPO: ${{ vars.HOMELAB_DEPLOYMENTS_REPO != '' && vars.HOMELAB_DEPLOYMENTS_REPO || '' }}
+      HOMELAB_DEPLOYMENTS_BRANCH: ${{ vars.HOMELAB_DEPLOYMENTS_BRANCH != '' && vars.HOMELAB_DEPLOYMENTS_BRANCH || 'main' }}
+      HOMELAB_DEPLOYMENTS_SERVICES: ${{ vars.HOMELAB_DEPLOYMENTS_SERVICES != '' && vars.HOMELAB_DEPLOYMENTS_SERVICES || 'agent,aggregator,frontend' }}
     steps:
       - name: Check out homelab-map
         uses: actions/checkout@v4
 
-      - name: Check out app manifests
+      - name: Check out homelab-deployments
         uses: actions/checkout@v4
         with:
-          repository: ${{ env.APP_MANIFESTS_REPO }}
-          token: ${{ secrets.APP_MANIFESTS_TOKEN }}
-          ref: ${{ env.APP_MANIFESTS_BRANCH }}
-          path: app-manifests
+          repository: ${{ env.HOMELAB_DEPLOYMENTS_REPO }}
+          token: ${{ secrets.HOMELAB_DEPLOYMENTS_TOKEN }}
+          ref: ${{ env.HOMELAB_DEPLOYMENTS_BRANCH }}
+          path: homelab-deployments
 
       - name: Update image tags
         run: |
-          service_args=$(printf ' --services %s' $(echo "${APP_MANIFESTS_SERVICES}" | tr ',' ' '))
-          python3 scripts/update_app_manifests.py \
-            --repo-path app-manifests \
+          service_args=$(printf ' --services %s' $(echo "${HOMELAB_DEPLOYMENTS_SERVICES}" | tr ',' ' '))
+          python3 scripts/update_homelab_deployments.py \
+            --repo-path homelab-deployments \
             --version "${VERSION}" \
             --registry "${REGISTRY}" \
             ${service_args}
 
-      - name: Open PR in app-manifests
+      - name: Open PR in homelab-deployments
         uses: peter-evans/create-pull-request@v6
         with:
-          path: app-manifests
-          token: ${{ secrets.APP_MANIFESTS_TOKEN }}
+          path: homelab-deployments
+          token: ${{ secrets.HOMELAB_DEPLOYMENTS_TOKEN }}
           commit-message: "chore: update homelab-map images to ${{ env.VERSION }}"
           branch: automation/homelab-map-${{ env.VERSION }}
-          base: ${{ env.APP_MANIFESTS_BRANCH }}
+          base: ${{ env.HOMELAB_DEPLOYMENTS_BRANCH }}
           title: "chore: homelab-map ${{ env.VERSION }}"
           body: |
             Update homelab-map image tags to `${{ env.VERSION }}`.

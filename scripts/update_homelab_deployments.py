@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Update image tags inside the external app-manifests repository.
+Update image tags inside the external homelab-deployments repository.
 
 The script searches YAML/JSON files for homelab-map images and replaces the tag with
 the provided version while keeping the registry/namespace portion untouched.
@@ -21,7 +21,7 @@ def parse_args() -> argparse.Namespace:
         "--repo-path",
         required=True,
         type=pathlib.Path,
-        help="Path to the cloned app-manifests repository",
+        help="Path to the cloned homelab-deployments repository",
     )
     parser.add_argument(
         "--version",
