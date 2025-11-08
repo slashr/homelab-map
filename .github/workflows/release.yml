@@ -175,6 +175,9 @@ jobs:
   build-and-push:
     needs: prepare-release
     if: needs.prepare-release.outputs.version != ''
+    permissions:
+      contents: read
+      packages: write
     uses: ./.github/workflows/build-and-publish.yml
     with:
       version: ${{ needs.prepare-release.outputs.version }}
