@@ -62,6 +62,16 @@ A real-time visualization tool for monitoring your k3s homelab cluster across mu
    export REGISTRY=docker.io/yourusername
    ```
 
+### Configuration
+
+- `NODE_TIMEOUT_SECONDS` (aggregator): Number of seconds before a node is marked offline. Defaults to 120. Override it before starting the API service if your agents report infrequently:
+
+  ```bash
+  export NODE_TIMEOUT_SECONDS=300
+  cd aggregator
+  uvicorn main:app --reload
+  ```
+
 ### Deployment
 
 ```bash

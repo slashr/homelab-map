@@ -4,10 +4,11 @@ Homelab K3s Aggregator - Central API service
 Receives data from agents and serves to frontend
 """
 
+import os
 import time
 import logging
 from typing import Dict, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,7 +40,37 @@ app.add_middleware(
 # In-memory storage for node data and connections
 nodes_data: Dict[str, dict] = {}
 connections_data: Dict[str, list] = {}  # Key: source_node, Value: list of connections
-NODE_TIMEOUT = 120  # Consider node offline if no update in 2 minutes
+NODE_TIMEOUT_ENV_VAR = "NODE_TIMEOUT_SECONDS"
+DEFAULT_NODE_TIMEOUT_SECONDS = 120
+
+
+def _load_node_timeout() -> int:
+    """Resolve the node timeout from the environment with a safe fallback."""
+    raw_value = os.getenv(NODE_TIMEOUT_ENV_VAR)
+    if raw_value is None:
+        return DEFAULT_NODE_TIMEOUT_SECONDS
+
+    try:
+        value = int(raw_value)
+    except ValueError:
+        logger.warning(
+            "NODE_TIMEOUT_SECONDS=%s is not a valid integer; falling back to %ss",
+            raw_value,
+            DEFAULT_NODE_TIMEOUT_SECONDS,
+        )
+        return DEFAULT_NODE_TIMEOUT_SECONDS
+
+    if value <= 0:
+        logger.warning(
+            "NODE_TIMEOUT_SECONDS must be positive; falling back to %ss",
+            DEFAULT_NODE_TIMEOUT_SECONDS,
+        )
+        return DEFAULT_NODE_TIMEOUT_SECONDS
+
+    return value
+
+
+NODE_TIMEOUT = _load_node_timeout()
 
 
 class Connection(BaseModel):

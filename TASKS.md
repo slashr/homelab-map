@@ -1,7 +1,7 @@
 # TASKS
 
 ## Low Effort
-1. Make `NODE_TIMEOUT` configurable
+1. [IN PROGRESS] Make `NODE_TIMEOUT` configurable
    - **Problem:** `aggregator/main.py` currently hardcodes `NODE_TIMEOUT = 120`, so the online/offline thresholds in `/api/nodes` and `/api/stats` cannot be tuned for larger clusters or when nodes naturally report slower (e.g., during performance testing).
    - **Proposed Solution:** Read `NODE_TIMEOUT_SECONDS` (or similar) from the environment, defaulting to 120, and reuse that value everywhere the code currently references the constant.
    - **Acceptance Criteria:** `NODE_TIMEOUT` becomes a runtime configuration, the default behavior is unchanged, and tests cover both the default and a custom timeout via monkeypatching.
