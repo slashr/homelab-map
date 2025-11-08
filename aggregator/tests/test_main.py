@@ -25,6 +25,28 @@ def reset_state() -> Iterable[None]:
     main.connections_data.clear()
 
 
+def test_load_node_timeout_default_and_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """NODE_TIMEOUT_SECONDS env var should override the default seconds."""
+    monkeypatch.delenv(main.NODE_TIMEOUT_ENV_VAR, raising=False)
+    assert main._load_node_timeout() == main.DEFAULT_NODE_TIMEOUT_SECONDS
+
+    monkeypatch.setenv(main.NODE_TIMEOUT_ENV_VAR, "300")
+    assert main._load_node_timeout() == 300
+
+
+def test_load_node_timeout_invalid_values_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Invalid values fall back to the default."""
+    monkeypatch.setenv(main.NODE_TIMEOUT_ENV_VAR, "not-a-number")
+    assert main._load_node_timeout() == main.DEFAULT_NODE_TIMEOUT_SECONDS
+
+    monkeypatch.setenv(main.NODE_TIMEOUT_ENV_VAR, "-5")
+    assert main._load_node_timeout() == main.DEFAULT_NODE_TIMEOUT_SECONDS
+
+
 @pytest.mark.anyio
 async def test_receive_node_data_stores_payload_and_connections() -> None:
     payload: Dict[str, Any] = {
