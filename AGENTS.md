@@ -31,6 +31,7 @@ These steps apply only when a task explicitly calls out the “FAW” (Fully Aut
 10. Once the post-merge automation succeeds, pick the next pending item from `TASKS.md` (if present) and start work on it while keeping the FAW rules in mind.
 11. Before asking for the thumbs-up or merging, explicitly read Codex’s latest review/comments to make sure any suggestions are captured–don’t rely solely on reactions.
 12. After implementing any Codex feedback, reply inline via the original review thread (use the Reply action) so the action taken stays attached to the comment rather than creating a separate message.
+13. When replying in-thread, append “@codex review again” so Codex re-checks the up-to-date commits before giving the 👍.
 
 ## Python services (`agent/`, `aggregator/`)
 - Follow the existing module layout: top-level docstring, imports grouped stdlib → third-party,
