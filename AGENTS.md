@@ -25,6 +25,7 @@ changes feel cohesive.
 5. Tag `@codex` for re-review whenever you push new commits after the initial PR, whether to fix checks or respond to Codex feedback.
 6. Repeat the fix → re-review loop until Codex responds with a 👍 (comment, review, or description reaction) or an explicit all-clear.
 7. Merge only after Codex has approved with a 👍 and all required checks are green.
+8. After merging, watch the follow-up automation (e.g., the Release workflow) until it finishes and respond to any failures.
 
 ## Python services (`agent/`, `aggregator/`)
 - Follow the existing module layout: top-level docstring, imports grouped stdlib → third-party,
