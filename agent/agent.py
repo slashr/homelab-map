@@ -31,11 +31,41 @@ NODE_NAME = os.getenv('NODE_NAME', socket.gethostname())
 # =============================================================================
 # For the map to work, we need approximate coordinates. You can find yours at:
 # https://www.latlong.net/ or just search "your city latitude longitude"
-HOME_LOCATION = {
-    'city': 'Berlin, Germany',  # UPDATE THIS: Your city name
-    'lat': 52.5200,               # UPDATE THIS: Approximate latitude
-    'lon': 13.4050,             # UPDATE THIS: Approximate longitude
-}
+HOME_CITY_ENV_VAR = 'HOME_CITY'
+HOME_LAT_ENV_VAR = 'HOME_LAT'
+HOME_LON_ENV_VAR = 'HOME_LON'
+DEFAULT_HOME_CITY = 'Berlin, Germany'
+DEFAULT_HOME_LAT = 52.5200
+DEFAULT_HOME_LON = 13.4050
+
+
+def _get_float_env(var_name: str, default: float) -> float:
+    """Return a float from the environment or fall back to default."""
+    raw_value = os.getenv(var_name)
+    if raw_value is None:
+        return default
+    try:
+        return float(raw_value)
+    except ValueError:
+        logger.warning(
+            "Invalid %s value '%s'; falling back to %s",
+            var_name,
+            raw_value,
+            default,
+        )
+        return default
+
+
+def _build_home_location() -> dict:
+    """Create the home location configuration from environment variables."""
+    return {
+        'city': os.getenv(HOME_CITY_ENV_VAR, DEFAULT_HOME_CITY),
+        'lat': _get_float_env(HOME_LAT_ENV_VAR, DEFAULT_HOME_LAT),
+        'lon': _get_float_env(HOME_LON_ENV_VAR, DEFAULT_HOME_LON),
+    }
+
+
+HOME_LOCATION = _build_home_location()
 
 # Cloud provider datacenter locations (no need to change these)
 CLOUD_LOCATIONS = {

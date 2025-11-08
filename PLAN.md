@@ -1,38 +1,30 @@
-# ExecPlan: Configurable Aggregator Node Timeout
+# ExecPlan: Injectable Agent Home Location
 
 ## Purpose and Outcome
 
-Operators need to tweak how long the aggregator waits before marking nodes offline so that slow-reporting clusters are not flapping between warning and offline. This plan teaches someone new to the repo how to make the node timeout configurable through an environment variable while preserving the current 120-second default. After following the plan, the aggregator will respect the requested timeout in both `/api/nodes` and `/api/stats`, tests will prove the behavior for default and custom values, and the README will document the new configuration knob so others can discover it.
+Operators currently edit `agent/agent.py` to change `HOME_LOCATION`, which means rebuilding the image for every cluster. This plan shows how to make the agent read `HOME_CITY`, `HOME_LAT`, and `HOME_LON` environment variables so that helm charts, DaemonSets, or docker-compose files can override the home marker without modifying Python code. After executing the plan, agents started with these env vars will emit the correct city and coordinates, the defaults remain Berlin/Germany for untouched deployments, and the README explains how to configure the new knobs.
 
 ## System Background
 
-The FastAPI aggregator in `aggregator/main.py` maintains in-memory dictionaries `nodes_data` and `connections_data` that power the `/api/nodes`, `/api/nodes/{name}`, `/api/connections`, and `/api/stats` endpoints. At module import it defines `NODE_TIMEOUT = 120` and compares elapsed seconds against that constant to assign statuses in `get_all_nodes` and to decide whether a node counts as online inside `get_cluster_stats`. Tests live in `aggregator/tests/test_main.py` and already use `pytest` fixtures plus `monkeypatch` to simulate timestamps. Documentation for operator actions lives in the repository-level `README.md`.
+The agent service defined in `agent/agent.py` runs inside a Kubernetes DaemonSet. It sets `HOME_LOCATION` to a hard-coded dictionary and then expands that dictionary when it builds the `NODE_LOCATIONS` mapping for on-prem Raspberry Pi nodes. The `NODE_LOCATIONS` data is copied into every payload so the aggregator/front-end can plot on-prem machines near the user’s home. Because the environment already provides other runtime settings (`AGGREGATOR_URL`, `REPORT_INTERVAL`), making the home location configurable via env vars keeps the deployment story consistent. Documentation for operator setup currently tells users to edit `agent/agent.py`, so it must be updated alongside the code change.
 
 ## Implementation Plan
 
-Introduce a helper near the existing constant that reads an environment variable named `NODE_TIMEOUT_SECONDS`. The helper must accept only positive integers, fall back to the 120-second default for missing or invalid values, and log a warning when falling back so operators see misconfigurations in the aggregator logs. Expose three module-level constants: the env var name, the default seconds, and the resolved `NODE_TIMEOUT`. Reference `NODE_TIMEOUT` everywhere it already appears. The helper will be unit-tested directly to cover both default and overridden behavior without reloading the module.
+Introduce helper functions near the configuration block in `agent/agent.py` to read three optional environment variables: `HOME_CITY` (string), `HOME_LAT` (float), and `HOME_LON` (float). Each helper should fall back to the existing Berlin defaults and log a warning when an invalid float is provided so operators notice typos. Replace the static `HOME_LOCATION` literal with a call to the new helper so `NODE_LOCATIONS` automatically inherits any overrides at module import.
 
-Update `aggregator/tests/test_main.py` with a new test that verifies `_load_node_timeout` returns the default when the environment is unset and a custom value when `monkeypatch` has supplied an override. Use `monkeypatch.setenv` and `monkeypatch.delenv` to avoid leaking environment changes between tests. Keep the existing asynchronous tests unchanged other than any needed imports.
-
-Document the new environment variable in `README.md` where the aggregator setup instructions describe configuration so operators see it during deployment. Mention the default and give a short example showing how to export the variable before launching the service.
+Because the node mapping copies `HOME_LOCATION` for several keys, no other parts of the agent need to change. However, the README’s “Setup” section must be rewritten to explain that users can export the three env vars (with an example command snippet) instead of editing Python files. Also extend the “Configuration” section that currently lists `NODE_TIMEOUT_SECONDS` so that the new variables are documented in one place.
 
 ## Validation
 
-Run the aggregator test suite from the repository root with
-
-    cd aggregator
-    pytest
-
-to ensure the new helper tests pass alongside the existing async tests. Because the change only affects the Python service, no frontend or agent commands are needed. Optionally run `make test` if a repo-wide test harness exists; otherwise, `pytest` inside the aggregator suffices as proof.
+Run a lightweight sanity check by executing the module in dry-run mode: start a Python REPL, import `agent.agent`, and confirm that `HOME_LOCATION` values match the overrides when `HOME_CITY`, `HOME_LAT`, and `HOME_LON` are set in the environment before import. Document this manual verification in the PR description since the agent package lacks automated tests.
 
 ## Progress
 
-- [x] Helper and environment variable implemented in `aggregator/main.py`
-- [x] Tests added for default and custom timeout behavior
-- [x] README updated with `NODE_TIMEOUT_SECONDS` documentation
-- [x] Local pytest run succeeds
+- [x] Env-driven `HOME_LOCATION` helper implemented in `agent/agent.py`
+- [x] README setup and configuration sections updated to describe the env vars
+- [x] Manual verification performed (e.g., `HOME_LAT=40.71 python -c 'import agent.agent; print(agent.agent.HOME_LOCATION)'`)
 
 ## Change Log
 
-- 2025-11-09 – Initial plan drafted for making the aggregator timeout configurable so operators can tune warning/offline thresholds.
-- 2025-11-09 – Progress section updated after implementing the helper, tests, documentation, and running the aggregator pytest suite.
+- 2025-11-09 – Plan created to guide the agent home-location environment variable work.
+- 2025-11-09 – Progress updated after implementing the helper, documentation, and manual verification.
