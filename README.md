@@ -104,7 +104,7 @@ npm start
 
 ## Automated Releases
 
-- Every merged pull request into `main` triggers the `Release` workflow. Label the PR with `feat`, `fix`, or `major release` (aliases: `feature`, `enhancement`, `bug`, `breaking`, etc.) to control the SemVer bump. Without a label the workflow defaults to a patch bump.
+- Every merge into `main` triggers the `Release` workflow (direct pushes are ignored because the workflow requires an associated pull request). Label the PR with `feat`, `fix`, or `major release` (aliases: `feature`, `enhancement`, `bug`, `breaking`, etc.) to control the SemVer bump. Without a label the workflow defaults to a patch bump.
 - The workflow tags the merge commit (e.g., `v1.2.3`), invokes the reusable `Build and Publish Container Images` pipeline to build/push all service images with that tag, and still publishes a commit-hash fallback tag.
 - Configure the following repository settings so the automation can run:
   - Secrets: `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`, and `HOMELAB_DEPLOYMENTS_TOKEN` (PAT with `public_repo` access) for pushing Docker images and updating the deployments repo.
