@@ -18,7 +18,7 @@ on:
 
 env:
   REGISTRY: ${{ vars.REGISTRY != '' && vars.REGISTRY || 'docker.io/dawker' }}
-  HOMELAB_DEPLOYMENTS_REPO: ${{ vars.HOMELAB_DEPLOYMENTS_REPO != '' && vars.HOMELAB_DEPLOYMENTS_REPO || '' }}
+  HOMELAB_DEPLOYMENTS_REPO: ${{ vars.HOMELAB_DEPLOYMENTS_REPO != '' && vars.HOMELAB_DEPLOYMENTS_REPO || 'slashr/homelab-deployments' }}
   HOMELAB_DEPLOYMENTS_BRANCH: ${{ vars.HOMELAB_DEPLOYMENTS_BRANCH != '' && vars.HOMELAB_DEPLOYMENTS_BRANCH || 'main' }}
   HOMELAB_DEPLOYMENTS_SERVICES: ${{ vars.HOMELAB_DEPLOYMENTS_SERVICES != '' && vars.HOMELAB_DEPLOYMENTS_SERVICES || 'agent,aggregator,frontend' }}
 
