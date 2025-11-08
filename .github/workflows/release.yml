@@ -119,7 +119,7 @@ jobs:
 
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
               env_file.write(f"RELEASE_ENABLED={enabled}\n")
-PY
+          PY
 
       - name: Determine version bump
         id: bump_level
