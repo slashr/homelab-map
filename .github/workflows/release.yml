@@ -48,6 +48,10 @@ jobs:
           result-encoding: string
           script: |
             const sha = context.sha;
+            core.setOutput('labels', '[]');
+            core.setOutput('merge_sha', sha);
+            core.setOutput('number', '');
+            core.setOutput('has_pr', 'false');
             try {
               const response = await github.rest.repos.listPullRequestsAssociatedWithCommit({
                 owner: context.repo.owner,
@@ -56,8 +60,6 @@ jobs:
               });
               if (!response.data.length) {
                 core.info(`No pull request found for commit ${sha}`);
-                core.setOutput('labels', '[]');
-                core.setOutput('merge_sha', sha);
                 return;
               }
               const pr = response.data[0];
@@ -65,11 +67,10 @@ jobs:
               core.setOutput('labels', JSON.stringify(labels));
               core.setOutput('merge_sha', pr.merge_commit_sha || sha);
               core.setOutput('number', String(pr.number));
+              core.setOutput('has_pr', 'true');
               core.info(`Using labels from PR #${pr.number}: ${labels.join(', ')}`);
             } catch (error) {
               core.warning(`Unable to fetch PR metadata: ${error.message}`);
-              core.setOutput('labels', '[]');
-              core.setOutput('merge_sha', sha);
             }
 
       - name: Determine version bump
@@ -78,6 +79,7 @@ jobs:
         env:
           MANUAL_BUMP: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump || '' }}
           LABELS_JSON: ${{ steps.pr_metadata.outputs.labels || '[]' }}
+        if: github.event_name == 'workflow_dispatch' || steps.pr_metadata.outputs.has_pr == 'true'
         with:
           result-encoding: string
           script: |
@@ -117,7 +119,8 @@ jobs:
           else
             base="${latest#v}"
           fi
-          echo "base=$base" >> "$GITHUB_OUTPUT"
+              echo "base=$base" >> "$GITHUB_OUTPUT"
+        if: github.event_name == 'workflow_dispatch' || steps.pr_metadata.outputs.has_pr == 'true'
 
       - name: Calculate next version
         id: bump_version
@@ -144,7 +147,8 @@ jobs:
               ;;
           esac
           version="v${major}.${minor}.${patch}"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+              echo "version=$version" >> "$GITHUB_OUTPUT"
+        if: github.event_name == 'workflow_dispatch' || steps.pr_metadata.outputs.has_pr == 'true'
 
       - name: Create git tag
         env:
@@ -156,6 +160,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag "$VERSION" "$TARGET_SHA"
           git push origin "$VERSION"
+        if: github.event_name == 'workflow_dispatch' || steps.pr_metadata.outputs.has_pr == 'true'
 
   build-and-push:
     needs: prepare-release
