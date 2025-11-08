@@ -109,6 +109,7 @@ npm start
 - Configure the following repository settings so the automation can run:
   - Secrets: `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`, and `HOMELAB_DEPLOYMENTS_TOKEN` (PAT with `public_repo` access) for pushing Docker images and updating the deployments repo.
   - Variables: `REGISTRY` (e.g., `docker.io/dawker`), `HOMELAB_DEPLOYMENTS_REPO` (defaults to `slashr/homelab-deployments`, override if your manifests live elsewhere), optional `HOMELAB_DEPLOYMENTS_BRANCH` (default `main`), and optional `HOMELAB_DEPLOYMENTS_SERVICES` (comma-separated list, default `agent,aggregator,frontend`).
+- To skip a release (e.g., CI-only or docs-only changes), add the `skip release` label before merging. The workflow also respects additional aliases via the optional `SKIP_RELEASE_LABELS` variable.
 - After the images push, the workflow clones the configured `homelab-deployments` repo, uses `scripts/update_homelab_deployments.py` to bump every `homelab-map-*` image reference to the new tag, and opens an automated PR so the deployment picks up the fresh images.
 - You can also run the `Release` workflow manually from the Actions tab, choosing the bump size from the dropdown if you need an out-of-band release.
 
