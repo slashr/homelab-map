@@ -28,6 +28,7 @@ These steps apply only when a task explicitly calls out the “FAW” (Fully Aut
 7. Merge only after Codex has approved with a 👍 and all required checks are green.
 8. After merging, watch the follow-up automation (e.g., the Release workflow) until it finishes and respond to any failures.
 9. If a post-merge run fails, immediately investigate the error and open a new PR that fixes it. You may trigger this recovery flow up to three times (three consecutive merged PRs followed by failing automation runs). After the third failure, stop retrying and escalate instead of opening more PRs under FAW.
+10. Once the post-merge automation succeeds, pick the next pending item from `TASKS.md` (if present) and start work on it while keeping the FAW rules in mind.
 
 ## Python services (`agent/`, `aggregator/`)
 - Follow the existing module layout: top-level docstring, imports grouped stdlib → third-party,
