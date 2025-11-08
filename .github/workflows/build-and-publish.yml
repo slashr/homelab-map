@@ -1,19 +1,34 @@
 name: Build and Publish Container Images
 
 on:
-  push:
-    branches:
-      - main
+  workflow_call:
+    inputs:
+      version:
+        description: "SemVer tag to apply to all images"
+        required: true
+        type: string
+    secrets:
+      REGISTRY_USERNAME:
+        required: true
+      REGISTRY_PASSWORD:
+        required: true
   workflow_dispatch:
+    inputs:
+      version:
+        description: "SemVer tag to apply to all images"
+        required: true
+        type: string
+        default: latest
 
 env:
   REGISTRY: ${{ vars.REGISTRY != '' && vars.REGISTRY || 'docker.io/dawker' }}
-  VERSION: ${{ vars.VERSION != '' && vars.VERSION || 'latest' }}
   PLATFORMS: ${{ vars.PLATFORMS != '' && vars.PLATFORMS || 'linux/amd64,linux/arm64' }}
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version }}
     strategy:
       matrix:
         include:

@@ -102,6 +102,16 @@ npm install
 npm start
 ```
 
+## Automated Releases
+
+- Every merged pull request into `main` triggers the `Release` workflow. Label the PR with `feat`, `fix`, or `major release` (aliases: `feature`, `enhancement`, `bug`, `breaking`, etc.) to control the SemVer bump. Without a label the workflow defaults to a patch bump.
+- The workflow tags the merge commit (e.g., `v1.2.3`), invokes the reusable `Build and Publish Container Images` pipeline to build/push all service images with that tag, and still publishes a commit-hash fallback tag.
+- Configure the following repository settings so the automation can run:
+  - Secrets: `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`, and `APP_MANIFESTS_TOKEN` (PAT with `public_repo` access) for pushing Docker images and updating the manifests repo.
+  - Variables: `REGISTRY` (e.g., `docker.io/dawker`), `APP_MANIFESTS_REPO` (owner/repo for the manifests), optional `APP_MANIFESTS_BRANCH` (default `main`), and optional `APP_MANIFESTS_SERVICES` (comma-separated list, default `agent,aggregator,frontend`).
+- After the images push, the workflow clones the configured `app-manifests` repo, uses `scripts/update_app_manifests.py` to bump every `homelab-map-*` image reference to the new tag, and opens an automated PR so the deployment picks up the fresh images.
+- You can also run the `Release` workflow manually from the Actions tab, choosing the bump size from the dropdown if you need an out-of-band release.
+
 ## Features
 
 - [x] Map overlay with node locations

@@ -1,0 +1,177 @@
+name: Release
+
+on:
+  pull_request:
+    types:
+      - closed
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "SemVer bump to apply when run manually"
+        default: patch
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+env:
+  REGISTRY: ${{ vars.REGISTRY != '' && vars.REGISTRY || 'docker.io/dawker' }}
+  APP_MANIFESTS_REPO: ${{ vars.APP_MANIFESTS_REPO != '' && vars.APP_MANIFESTS_REPO || '' }}
+  APP_MANIFESTS_BRANCH: ${{ vars.APP_MANIFESTS_BRANCH != '' && vars.APP_MANIFESTS_BRANCH || 'main' }}
+  APP_MANIFESTS_SERVICES: ${{ vars.APP_MANIFESTS_SERVICES != '' && vars.APP_MANIFESTS_SERVICES || 'agent,aggregator,frontend' }}
+
+jobs:
+  prepare-release:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    outputs:
+      version: ${{ steps.bump_version.outputs.version }}
+    steps:
+      - name: Check out merged commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - name: Determine version bump
+        id: bump_level
+        uses: actions/github-script@v7
+        with:
+          manual-bump: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump || '' }}
+          result-encoding: string
+          script: |
+            const manual = core.getInput('manual-bump');
+            if (manual) {
+              core.info(`Using manual bump: ${manual}`);
+              return manual;
+            }
+            const labels = (context.payload.pull_request?.labels || []).map(label => label.name.toLowerCase());
+            const has = (candidates) => labels.some(label => candidates.includes(label));
+            if (has(['major release', 'major', 'breaking', 'release:major', 'semver:major'])) {
+              return 'major';
+            }
+            if (has(['feat', 'feature', 'enhancement', 'minor', 'release:minor', 'semver:minor'])) {
+              return 'minor';
+            }
+            if (has(['fix', 'patch', 'bug', 'bugfix', 'hotfix', 'release:patch', 'semver:patch'])) {
+              return 'patch';
+            }
+            core.info('No bump label found; defaulting to patch');
+            return 'patch';
+
+      - name: Determine current version
+        id: current_tag
+        run: |
+          set -euo pipefail
+          latest="$(git describe --tags --match 'v*' --abbrev=0 2>/dev/null || true)"
+          if [[ -z "$latest" ]]; then
+            base="0.0.0"
+          else
+            base="${latest#v}"
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+
+      - name: Calculate next version
+        id: bump_version
+        run: |
+          set -euo pipefail
+          current="${{ steps.current_tag.outputs.base }}"
+          bump="${{ steps.bump_level.outputs.result }}"
+          IFS='.' read -r major minor patch <<<"${current:-0.0.0}"
+          major="${major:-0}"
+          minor="${minor:-0}"
+          patch="${patch:-0}"
+          case "$bump" in
+            major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            *)
+              patch=$((patch + 1))
+              ;;
+          esac
+          version="v${major}.${minor}.${patch}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Create git tag
+        env:
+          VERSION: ${{ steps.bump_version.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$VERSION" ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          git push origin "$VERSION"
+
+  build-and-push:
+    needs: prepare-release
+    if: needs.prepare-release.outputs.version != ''
+    uses: ./.github/workflows/build-and-publish.yml
+    with:
+      version: ${{ needs.prepare-release.outputs.version }}
+    secrets: inherit
+
+  update-app-manifests:
+    needs:
+      - prepare-release
+      - build-and-push
+    if: vars.APP_MANIFESTS_REPO != '' && needs.prepare-release.outputs.version != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      VERSION: ${{ needs.prepare-release.outputs.version }}
+      REGISTRY: ${{ vars.REGISTRY != '' && vars.REGISTRY || 'docker.io/dawker' }}
+      APP_MANIFESTS_REPO: ${{ vars.APP_MANIFESTS_REPO != '' && vars.APP_MANIFESTS_REPO || '' }}
+      APP_MANIFESTS_BRANCH: ${{ vars.APP_MANIFESTS_BRANCH != '' && vars.APP_MANIFESTS_BRANCH || 'main' }}
+      APP_MANIFESTS_SERVICES: ${{ vars.APP_MANIFESTS_SERVICES != '' && vars.APP_MANIFESTS_SERVICES || 'agent,aggregator,frontend' }}
+    steps:
+      - name: Check out homelab-map
+        uses: actions/checkout@v4
+
+      - name: Check out app manifests
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.APP_MANIFESTS_REPO }}
+          token: ${{ secrets.APP_MANIFESTS_TOKEN }}
+          ref: ${{ env.APP_MANIFESTS_BRANCH }}
+          path: app-manifests
+
+      - name: Update image tags
+        run: |
+          service_args=$(printf ' --services %s' $(echo "${APP_MANIFESTS_SERVICES}" | tr ',' ' '))
+          python3 scripts/update_app_manifests.py \
+            --repo-path app-manifests \
+            --version "${VERSION}" \
+            --registry "${REGISTRY}" \
+            ${service_args}
+
+      - name: Open PR in app-manifests
+        uses: peter-evans/create-pull-request@v6
+        with:
+          path: app-manifests
+          token: ${{ secrets.APP_MANIFESTS_TOKEN }}
+          commit-message: "chore: update homelab-map images to ${{ env.VERSION }}"
+          branch: automation/homelab-map-${{ env.VERSION }}
+          base: ${{ env.APP_MANIFESTS_BRANCH }}
+          title: "chore: homelab-map ${{ env.VERSION }}"
+          body: |
+            Update homelab-map image tags to `${{ env.VERSION }}`.
+          labels: |
+            automated
+            homelab-map
+          delete-branch: true
