@@ -225,17 +225,17 @@ jobs:
     needs:
       - prepare-release
       - build-and-push
-    if: vars.HOMELAB_DEPLOYMENTS_REPO != '' && needs.prepare-release.outputs.version != '' && needs.prepare-release.outputs.release_enabled == 'true'
+    if: env.HOMELAB_DEPLOYMENTS_REPO != '' && needs.prepare-release.outputs.version != '' && needs.prepare-release.outputs.release_enabled == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
     env:
       VERSION: ${{ needs.prepare-release.outputs.version }}
-      REGISTRY: ${{ vars.REGISTRY != '' && vars.REGISTRY || 'docker.io/dawker' }}
-      HOMELAB_DEPLOYMENTS_REPO: ${{ vars.HOMELAB_DEPLOYMENTS_REPO != '' && vars.HOMELAB_DEPLOYMENTS_REPO || '' }}
-      HOMELAB_DEPLOYMENTS_BRANCH: ${{ vars.HOMELAB_DEPLOYMENTS_BRANCH != '' && vars.HOMELAB_DEPLOYMENTS_BRANCH || 'main' }}
-      HOMELAB_DEPLOYMENTS_SERVICES: ${{ vars.HOMELAB_DEPLOYMENTS_SERVICES != '' && vars.HOMELAB_DEPLOYMENTS_SERVICES || 'agent,aggregator,frontend' }}
+      REGISTRY: ${{ env.REGISTRY }}
+      HOMELAB_DEPLOYMENTS_REPO: ${{ env.HOMELAB_DEPLOYMENTS_REPO }}
+      HOMELAB_DEPLOYMENTS_BRANCH: ${{ env.HOMELAB_DEPLOYMENTS_BRANCH }}
+      HOMELAB_DEPLOYMENTS_SERVICES: ${{ env.HOMELAB_DEPLOYMENTS_SERVICES }}
     steps:
       - name: Check out homelab-map
         uses: actions/checkout@v4
