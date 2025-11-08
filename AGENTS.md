@@ -17,7 +17,8 @@ changes feel cohesive.
 - Docker image builds are orchestrated through the provided `Makefile` and `scripts/*.sh`
   helpers. Prefer extending those instead of introducing parallel workflows.
 
-## Pull request workflow
+## Fully Automated Workflow (FAW)
+These steps apply only when a task explicitly calls out the “FAW” (Fully Automated Workflow). For any other work, continue to follow the standard flow you already know:
 1. Pick up a task, implement the change locally, and open a PR for review.
 2. Ensure every required check on the PR completes successfully; if a check fails, push fixes until it passes.
 3. Wait for the automated Codex reviewer to approve by either leaving a 👍 comment/review or reacting with 👍 on the PR description.
@@ -26,6 +27,7 @@ changes feel cohesive.
 6. Repeat the fix → re-review loop until Codex responds with a 👍 (comment, review, or description reaction) or an explicit all-clear.
 7. Merge only after Codex has approved with a 👍 and all required checks are green.
 8. After merging, watch the follow-up automation (e.g., the Release workflow) until it finishes and respond to any failures.
+9. If a post-merge run fails, immediately investigate the error and open a new PR that fixes it. You may trigger this recovery flow up to three times (three consecutive merged PRs followed by failing automation runs). After the third failure, stop retrying and escalate instead of opening more PRs under FAW.
 
 ## Python services (`agent/`, `aggregator/`)
 - Follow the existing module layout: top-level docstring, imports grouped stdlib → third-party,
