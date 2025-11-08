@@ -75,13 +75,9 @@ jobs:
 
       - name: Export release metadata
         run: |
-          {
-            echo "LABELS_JSON<<'EOF'"
-            echo "${{ steps.pr_metadata.outputs.labels || '[]' }}"
-            echo "EOF"
-            echo "HAS_PR=${{ steps.pr_metadata.outputs.has_pr || 'false' }}"
-            echo "MERGE_SHA=${{ steps.pr_metadata.outputs.merge_sha || github.sha }}"
-          } >> "$GITHUB_ENV"
+          echo "LABELS_JSON=${{ steps.pr_metadata.outputs.labels || '[]' }}" >> "$GITHUB_ENV"
+          echo "HAS_PR=${{ steps.pr_metadata.outputs.has_pr || 'false' }}" >> "$GITHUB_ENV"
+          echo "MERGE_SHA=${{ steps.pr_metadata.outputs.merge_sha || github.sha }}" >> "$GITHUB_ENV"
 
       - name: Determine version bump
         id: bump_level
