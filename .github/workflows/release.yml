@@ -1,9 +1,9 @@
 name: Release
 
 on:
-  pull_request:
-    types:
-      - closed
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       bump:
@@ -24,7 +24,7 @@ env:
 
 jobs:
   prepare-release:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main')
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -35,25 +35,65 @@ jobs:
       - name: Check out merged commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Fetch tags
         run: git fetch --tags --force
 
+      - name: Gather PR metadata
+        id: pr_metadata
+        uses: actions/github-script@v7
+        with:
+          result-encoding: string
+          script: |
+            const sha = context.sha;
+            try {
+              const response = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: sha,
+              });
+              if (!response.data.length) {
+                core.info(`No pull request found for commit ${sha}`);
+                core.setOutput('labels', '[]');
+                core.setOutput('merge_sha', sha);
+                return;
+              }
+              const pr = response.data[0];
+              const labels = pr.labels.map((label) => label.name);
+              core.setOutput('labels', JSON.stringify(labels));
+              core.setOutput('merge_sha', pr.merge_commit_sha || sha);
+              core.setOutput('number', String(pr.number));
+              core.info(`Using labels from PR #${pr.number}: ${labels.join(', ')}`);
+            } catch (error) {
+              core.warning(`Unable to fetch PR metadata: ${error.message}`);
+              core.setOutput('labels', '[]');
+              core.setOutput('merge_sha', sha);
+            }
+
       - name: Determine version bump
         id: bump_level
         uses: actions/github-script@v7
+        env:
+          MANUAL_BUMP: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump || '' }}
+          LABELS_JSON: ${{ steps.pr_metadata.outputs.labels || '[]' }}
         with:
-          manual-bump: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump || '' }}
           result-encoding: string
           script: |
-            const manual = core.getInput('manual-bump');
+            const manual = process.env.MANUAL_BUMP;
             if (manual) {
               core.info(`Using manual bump: ${manual}`);
               return manual;
             }
-            const labels = (context.payload.pull_request?.labels || []).map(label => label.name.toLowerCase());
+            let labels = [];
+            try {
+              labels = JSON.parse(process.env.LABELS_JSON || '[]').map((label) =>
+                String(label || '').toLowerCase()
+              );
+            } catch (error) {
+              core.warning(`Unable to parse labels JSON: ${error.message}`);
+            }
             const has = (candidates) => labels.some(label => candidates.includes(label));
             if (has(['major release', 'major', 'breaking', 'release:major', 'semver:major'])) {
               return 'major';
@@ -109,11 +149,12 @@ jobs:
       - name: Create git tag
         env:
           VERSION: ${{ steps.bump_version.outputs.version }}
+          TARGET_SHA: ${{ steps.pr_metadata.outputs.merge_sha || github.sha }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag "$VERSION" ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          git tag "$VERSION" "$TARGET_SHA"
           git push origin "$VERSION"
 
   build-and-push:
