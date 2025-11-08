@@ -250,12 +250,22 @@ jobs:
 
       - name: Update image tags
         run: |
-          service_args=$(printf ' --services %s' $(echo "${HOMELAB_DEPLOYMENTS_SERVICES}" | tr ',' ' '))
+          set -euo pipefail
+          IFS=',' read -ra service_list <<< "${HOMELAB_DEPLOYMENTS_SERVICES}"
+          for i in "${!service_list[@]}"; do
+            service_list[$i]="$(echo "${service_list[$i]}" | xargs)"
+            if [[ -z "${service_list[$i]}" ]]; then
+              unset 'service_list[i]'
+            fi
+          done
+          if [[ ${#service_list[@]} -eq 0 ]]; then
+            service_list=(agent aggregator frontend)
+          fi
           python3 scripts/update_homelab_deployments.py \
             --repo-path homelab-deployments \
             --version "${VERSION}" \
             --registry "${REGISTRY}" \
-            ${service_args}
+            --services "${service_list[@]}"
 
       - name: Open PR in homelab-deployments
         uses: peter-evans/create-pull-request@v6
