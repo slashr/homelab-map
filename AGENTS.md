@@ -17,6 +17,15 @@ changes feel cohesive.
 - Docker image builds are orchestrated through the provided `Makefile` and `scripts/*.sh`
   helpers. Prefer extending those instead of introducing parallel workflows.
 
+## Pull request workflow
+1. Pick up a task, implement the change locally, and open a PR for review.
+2. Ensure every required check on the PR completes successfully; if a check fails, push fixes until it passes.
+3. Wait for the automated Codex reviewer to approve by either leaving a 👍 comment/review or reacting with 👍 on the PR description.
+4. If Codex leaves review feedback instead of a 👍, address the comments and push the fixes.
+5. Tag `@codex` for re-review whenever you push new commits after the initial PR, whether to fix checks or respond to Codex feedback.
+6. Repeat the fix → re-review loop until Codex responds with a 👍 (comment, review, or description reaction) or an explicit all-clear.
+7. Merge only after Codex has approved with a 👍 and all required checks are green.
+
 ## Python services (`agent/`, `aggregator/`)
 - Follow the existing module layout: top-level docstring, imports grouped stdlib → third-party,
   module-level constants, then functions. Keep 4-space indentation and include type hints on
