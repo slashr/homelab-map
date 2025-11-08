@@ -21,6 +21,7 @@ env:
   HOMELAB_DEPLOYMENTS_REPO: ${{ vars.HOMELAB_DEPLOYMENTS_REPO != '' && vars.HOMELAB_DEPLOYMENTS_REPO || 'slashr/homelab-deployments' }}
   HOMELAB_DEPLOYMENTS_BRANCH: ${{ vars.HOMELAB_DEPLOYMENTS_BRANCH != '' && vars.HOMELAB_DEPLOYMENTS_BRANCH || 'main' }}
   HOMELAB_DEPLOYMENTS_SERVICES: ${{ vars.HOMELAB_DEPLOYMENTS_SERVICES != '' && vars.HOMELAB_DEPLOYMENTS_SERVICES || 'agent,aggregator,frontend' }}
+  SKIP_RELEASE_LABELS: ${{ vars.SKIP_RELEASE_LABELS != '' && vars.SKIP_RELEASE_LABELS || 'skip release,no release,ci-only,infra-only,docs-only' }}
 
 jobs:
   prepare-release:
@@ -31,6 +32,7 @@ jobs:
       pull-requests: read
     outputs:
       version: ${{ steps.bump_version.outputs.version }}
+      release_enabled: ${{ steps.release_gate.outputs.enabled }}
     steps:
       - name: Check out merged commit
         uses: actions/checkout@v4
@@ -79,10 +81,50 @@ jobs:
           echo "HAS_PR=${{ steps.pr_metadata.outputs.has_pr || 'false' }}" >> "$GITHUB_ENV"
           echo "MERGE_SHA=${{ steps.pr_metadata.outputs.merge_sha || github.sha }}" >> "$GITHUB_ENV"
 
+      - name: Decide release gate
+        id: release_gate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          python - <<'PY'
+import json, os
+
+labels_raw = os.environ.get("LABELS_JSON", "[]")
+try:
+    labels = [str(label).lower() for label in json.loads(labels_raw)]
+except json.JSONDecodeError:
+    labels = []
+
+skip_terms = {
+    term.strip().lower()
+    for term in os.environ.get("SKIP_RELEASE_LABELS", "").split(",")
+    if term.strip()
+}
+
+event = os.environ.get("EVENT_NAME", "")
+has_pr = os.environ.get("HAS_PR", "false").lower() == "true"
+skip = any(label in skip_terms for label in labels)
+
+enabled = "true"
+if event != "workflow_dispatch":
+    if not has_pr:
+        enabled = "false"
+        print("Release skipped: no PR metadata.")
+    elif skip:
+        enabled = "false"
+        print("Release skipped: PR labeled to skip release.")
+
+with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+    fh.write(f"enabled={enabled}\n")
+
+with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
+    env_file.write(f"RELEASE_ENABLED={enabled}\n")
+PY
+
       - name: Determine version bump
         id: bump_level
         uses: actions/github-script@v7
-        if: github.event_name == 'workflow_dispatch' || env.HAS_PR == 'true'
+        if: env.RELEASE_ENABLED == 'true'
         with:
           result-encoding: string
           script: |
@@ -126,7 +168,7 @@ jobs:
             base="${latest#v}"
           fi
               echo "base=$base" >> "$GITHUB_OUTPUT"
-        if: github.event_name == 'workflow_dispatch' || env.HAS_PR == 'true'
+        if: env.RELEASE_ENABLED == 'true'
 
       - name: Calculate next version
         id: bump_version
@@ -154,7 +196,7 @@ jobs:
           esac
           version="v${major}.${minor}.${patch}"
               echo "version=$version" >> "$GITHUB_OUTPUT"
-        if: github.event_name == 'workflow_dispatch' || env.HAS_PR == 'true'
+        if: env.RELEASE_ENABLED == 'true'
 
       - name: Create git tag
         env:
@@ -166,11 +208,11 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag "$VERSION" "$TARGET_SHA"
           git push origin "$VERSION"
-        if: github.event_name == 'workflow_dispatch' || env.HAS_PR == 'true'
+        if: env.RELEASE_ENABLED == 'true'
 
   build-and-push:
     needs: prepare-release
-    if: needs.prepare-release.outputs.version != ''
+    if: needs.prepare-release.outputs.version != '' && needs.prepare-release.outputs.release_enabled == 'true'
     permissions:
       contents: read
       packages: write
@@ -183,7 +225,7 @@ jobs:
     needs:
       - prepare-release
       - build-and-push
-    if: vars.HOMELAB_DEPLOYMENTS_REPO != '' && needs.prepare-release.outputs.version != ''
+    if: vars.HOMELAB_DEPLOYMENTS_REPO != '' && needs.prepare-release.outputs.version != '' && needs.prepare-release.outputs.release_enabled == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
