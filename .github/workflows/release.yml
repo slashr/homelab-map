@@ -87,38 +87,38 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         run: |
           python - <<'PY'
-import json, os
+          import json, os
 
-labels_raw = os.environ.get("LABELS_JSON", "[]")
-try:
-    labels = [str(label).lower() for label in json.loads(labels_raw)]
-except json.JSONDecodeError:
-    labels = []
+          labels_raw = os.environ.get("LABELS_JSON", "[]")
+          try:
+              labels = [str(label).lower() for label in json.loads(labels_raw)]
+          except json.JSONDecodeError:
+              labels = []
 
-skip_terms = {
-    term.strip().lower()
-    for term in os.environ.get("SKIP_RELEASE_LABELS", "").split(",")
-    if term.strip()
-}
+          skip_terms = {
+              term.strip().lower()
+              for term in os.environ.get("SKIP_RELEASE_LABELS", "").split(",")
+              if term.strip()
+          }
 
-event = os.environ.get("EVENT_NAME", "")
-has_pr = os.environ.get("HAS_PR", "false").lower() == "true"
-skip = any(label in skip_terms for label in labels)
+          event = os.environ.get("EVENT_NAME", "")
+          has_pr = os.environ.get("HAS_PR", "false").lower() == "true"
+          skip = any(label in skip_terms for label in labels)
 
-enabled = "true"
-if event != "workflow_dispatch":
-    if not has_pr:
-        enabled = "false"
-        print("Release skipped: no PR metadata.")
-    elif skip:
-        enabled = "false"
-        print("Release skipped: PR labeled to skip release.")
+          enabled = "true"
+          if event != "workflow_dispatch":
+              if not has_pr:
+                  enabled = "false"
+                  print("Release skipped: no PR metadata.")
+              elif skip:
+                  enabled = "false"
+                  print("Release skipped: PR labeled to skip release.")
 
-with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
-    fh.write(f"enabled={enabled}\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"enabled={enabled}\n")
 
-with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
-    env_file.write(f"RELEASE_ENABLED={enabled}\n")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
+              env_file.write(f"RELEASE_ENABLED={enabled}\n")
 PY
 
       - name: Determine version bump
