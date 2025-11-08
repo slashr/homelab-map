@@ -267,18 +267,16 @@ jobs:
             --registry "${REGISTRY}" \
             --services "${service_list[@]}"
 
-      - name: Open PR in homelab-deployments
-        uses: peter-evans/create-pull-request@v6
-        with:
-          path: homelab-deployments
-          token: ${{ secrets.HOMELAB_DEPLOYMENTS_TOKEN }}
-          commit-message: "chore: update homelab-map images to ${{ env.VERSION }}"
-          branch: automation/homelab-map-${{ env.VERSION }}
-          base: ${{ env.HOMELAB_DEPLOYMENTS_BRANCH }}
-          title: "chore: homelab-map ${{ env.VERSION }}"
-          body: |
-            Update homelab-map image tags to `${{ env.VERSION }}`.
-          labels: |
-            automated
-            homelab-map
-          delete-branch: true
+      - name: Commit and push deployments update
+        run: |
+          set -euo pipefail
+          cd homelab-deployments
+          if git diff --quiet; then
+            echo "No image updates detected"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "chore: update homelab-map images to $VERSION"
+          git push "https://x-access-token:${{ secrets.HOMELAB_DEPLOYMENTS_TOKEN }}@github.com/slashr/homelab-deployments.git" HEAD:main
