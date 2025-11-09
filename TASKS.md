@@ -16,7 +16,7 @@
    - **Alternatives:** Accept a config file or ConfigMap for locations; env vars keep the DaemonSet spec minimal.
 
 ## Medium Effort
-1. [IN PROGRESS] Surface network throughput per node in the UI
+1. [DONE] Surface network throughput per node in the UI
    - **Problem:** The README’s “Features” list still has [ ] for “Real-time network speed metrics,” and neither the agent nor the aggregator currently reports upload/download counters—only cpu/memory/disk. The frontend likewise lacks any place to display throughput.
    - **Proposed Solution:** Have the agent use `psutil.net_io_counters()` (per node) to calculate delta bytes over `REPORT_INTERVAL`, send those metrics in the payload, expose them via a new Pydantic field (e.g., `network_send_bytes_per_sec`), and update `StatsPanel`/`ClusterMap` to render the numbers.
    - **Acceptance Criteria:** Aggregator’s `/api/nodes` response includes per-node throughput, the frontend shows upload/download stats in the stats panel or popups, and the README checkbox becomes checked with a short note about how it works.
