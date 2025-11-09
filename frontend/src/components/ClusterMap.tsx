@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, GeoJSON } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L, { LatLngBoundsExpression } from 'leaflet';
@@ -62,7 +62,7 @@ const getFallbackAvatar = (nodeName: string): string => {
 };
 
 // Custom markers with character images
-const getMarkerIcon = (nodeName: string, status: string) => {
+const getMarkerIcon = (nodeName: string, status: string, isSelected: boolean) => {
   const imageUrl = getCharacterImage(nodeName);
   
   // Status border colors
@@ -72,7 +72,7 @@ const getMarkerIcon = (nodeName: string, status: string) => {
     'offline': '#9e9e9e',
   };
   
-  const borderColor = statusColors[status] || '#2196F3';
+  const borderColor = isSelected ? '#ffd54f' : statusColors[status] || '#2196F3';
   
   const fallbackUrl = getFallbackAvatar(nodeName);
   
@@ -81,10 +81,10 @@ const getMarkerIcon = (nodeName: string, status: string) => {
       width: 50px;
       height: 50px;
       border-radius: 50%;
-      border: 3px solid ${borderColor};
+      border: ${isSelected ? '4px' : '3px'} solid ${borderColor};
       overflow: hidden;
       background: white;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      box-shadow: ${isSelected ? '0 0 14px rgba(255, 213, 79, 0.8)' : '0 2px 8px rgba(0,0,0,0.3)'};
     ">
       <img src="${imageUrl}" 
            onerror="this.src='${fallbackUrl}'"
@@ -95,7 +95,7 @@ const getMarkerIcon = (nodeName: string, status: string) => {
 
   return L.divIcon({
     html: html,
-    className: 'character-marker',
+    className: `character-marker${isSelected ? ' selected' : ''}`,
     iconSize: [50, 50],
     iconAnchor: [25, 25],
     popupAnchor: [0, -25],
@@ -106,6 +106,8 @@ interface ClusterMapProps {
   nodes: Node[];
   connections: Connection[];
   darkMode: boolean;
+  selectedNodeId: string | null;
+  selectionToken: number;
 }
 
 const WORLD_BOUNDS: LatLngBoundsExpression = [
@@ -115,6 +117,36 @@ const WORLD_BOUNDS: LatLngBoundsExpression = [
 
 const clampToRange = (value: number, min: number, max: number) => {
   return Math.max(min, Math.min(max, value));
+};
+
+const SelectedNodeFocus: React.FC<{ node?: Node; token: number }> = ({ node, token }) => {
+  const map = useMap();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!node || node.lat == null || node.lon == null || isNaN(node.lat) || isNaN(node.lon)) {
+      return;
+    }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
+      const targetZoom = Math.max(map.getZoom(), 5);
+      map.flyTo([node.lat!, node.lon!], targetZoom, {
+        animate: true,
+        duration: 0.7,
+      });
+    }, 200);
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, node?.lat, node?.lon, node?.name, token]);
+
+  return null;
 };
 
 const SingleWorldView: React.FC = () => {
@@ -239,7 +271,13 @@ const FitBounds: React.FC<{ nodes: Node[] }> = ({ nodes }) => {
   return null;
 };
 
-const ClusterMap: React.FC<ClusterMapProps> = ({ nodes, connections, darkMode }) => {
+const ClusterMap: React.FC<ClusterMapProps> = ({
+  nodes,
+  connections,
+  darkMode,
+  selectedNodeId,
+  selectionToken,
+}) => {
   // Filter nodes that have valid location data (including NaN check)
   const nodesWithLocation = nodes.filter(node => 
     node.lat != null && 
@@ -248,6 +286,13 @@ const ClusterMap: React.FC<ClusterMapProps> = ({ nodes, connections, darkMode })
     !isNaN(node.lon) &&
     isFinite(node.lat) &&
     isFinite(node.lon)
+  );
+  const selectedNode = useMemo(
+    () =>
+      nodesWithLocation.find(
+        (node) => selectedNodeId && node.name === selectedNodeId
+      ),
+    [nodesWithLocation, selectedNodeId]
   );
 
   // Default center (world view)
@@ -279,6 +324,9 @@ const ClusterMap: React.FC<ClusterMapProps> = ({ nodes, connections, darkMode })
         {/* Limit view to a single world copy and fit bounds to nodes */}
         <SingleWorldView />
         <FitBounds nodes={nodesWithLocation} />
+        {selectedNode && (
+          <SelectedNodeFocus node={selectedNode} token={selectionToken} />
+        )}
         
         {/* Highlight countries with nodes */}
         <CountryHighlights nodes={nodesWithLocation} darkMode={darkMode} />
@@ -313,11 +361,14 @@ const ClusterMap: React.FC<ClusterMapProps> = ({ nodes, connections, darkMode })
           spiderfyOnMaxZoom={true}
           showCoverageOnHover={false}
         >
-          {nodesWithLocation.map((node) => (
+          {nodesWithLocation.map((node) => {
+            const isSelected = selectedNodeId === node.name;
+            return (
             <Marker
               key={node.name}
               position={[node.lat!, node.lon!]}
-              icon={getMarkerIcon(node.name, node.status)}
+              icon={getMarkerIcon(node.name, node.status, isSelected)}
+              zIndexOffset={isSelected ? 1000 : 0}
             >
               <Tooltip direction="top" offset={[0, -45]} opacity={0.9}>
                 <strong>{node.name}</strong>
@@ -409,7 +460,8 @@ const ClusterMap: React.FC<ClusterMapProps> = ({ nodes, connections, darkMode })
               </div>
               </Popup>
             </Marker>
-          ))}
+          );
+          })}
         </MarkerClusterGroup>
       </MapContainer>
     </div>

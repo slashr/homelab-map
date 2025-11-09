@@ -1,12 +1,25 @@
-# ExecPlan: Document Annotation Debugging in AXP
+# ExecPlan: Sidebar Click → Map Focus
 
 ## Goal
-Add explicit guidance to `AGENTS.md` so AXP practitioners know to consult GitHub Actions annotations whenever workflows fail before any jobs start.
+When someone clicks a node inside the StatsPanel list, the map should automatically center/zoom on that node and highlight both the sidebar entry and the marker. This keeps users from hunting for markers manually.
 
 ## Steps
-1. Update the "Minimal Rules" list with a note about checking the run’s Annotation panel (or `gh run view --summary`) when a workflow is flagged as a configuration error.
-2. Add an `actionlint` job to `.github/workflows/ci.yml` so workflow syntax issues are caught in PR CI.
-3. Push the branch, open a PR, and run CI. Wait for Codex approval + checks; release will naturally skip because only docs changed.
+1. **Introduce shared selection state**
+   - Lift `selectedNodeId` into `App.tsx`, pass `onNodeSelect`/`selectedNodeId` props to both `StatsPanel` and `ClusterMap`.
+   - Extend `Node` type if needed (e.g., ensure `lat/lon` optional) and add helper selectors.
+
+2. **Update StatsPanel interactions**
+   - Render each node row as a button/div with `onClick={() => onNodeSelect(node.name)}`.
+   - Highlight the active node (CSS class) and optionally ensure keyboard accessibility.
+
+3. **Map focusing + marker highlight**
+   - In `ClusterMap`, keep a ref to the Leaflet map. When `selectedNodeId` changes, find that node’s coordinates and `map.flyTo` with a reasonable zoom (e.g., 5–6). Debounce rapid changes (~200ms) to avoid jitter.
+   - Optionally add a small `useEffect` that temporarily adds a `blip` animation or uses Leaflet `setZIndexOffset` for the active marker.
+
+4. **Polish + validation**
+   - Add CSS for selected sidebar row + optional animation on markers.
+   - Run `npm run build` in `frontend/` to ensure TypeScript compiles; rely on jest? (build enough).
 
 ## Validation
-- Rely on CI: new `actionlint` job + existing tests must pass.
+- `cd frontend && npm install && npm run build`
+- Manual sanity: `npm start` locally (if time) to verify flyTo/scroll highlight.

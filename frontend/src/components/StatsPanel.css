@@ -277,6 +277,32 @@
   padding: 0.6rem 0.8rem;
   border-radius: 6px;
   font-size: 0.85rem;
+  border: none;
+  width: 100%;
+  text-align: left;
+  background-clip: padding-box;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  font: inherit;
+  color: inherit;
+}
+
+.node-item:focus-visible {
+  outline: 2px solid #667eea;
+  outline-offset: 2px;
+}
+
+.node-item.active {
+  transform: translateX(4px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+}
+
+.stats-panel.dark .node-item.active {
+  background: rgba(102, 126, 234, 0.2);
+}
+
+.stats-panel.light .node-item.active {
+  background: rgba(102, 126, 234, 0.15);
 }
 
 .node-item-header {

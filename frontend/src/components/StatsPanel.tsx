@@ -7,9 +7,17 @@ interface StatsPanelProps {
   stats: ClusterStats | null;
   nodes: Node[];
   darkMode: boolean;
+  selectedNodeId: string | null;
+  onNodeSelect: (nodeName: string) => void;
 }
 
-const StatsPanel: React.FC<StatsPanelProps> = ({ stats, nodes, darkMode }) => {
+const StatsPanel: React.FC<StatsPanelProps> = ({
+  stats,
+  nodes,
+  darkMode,
+  selectedNodeId,
+  onNodeSelect,
+}) => {
   if (!stats) {
     return null;
   }
@@ -117,7 +125,22 @@ const StatsPanel: React.FC<StatsPanelProps> = ({ stats, nodes, darkMode }) => {
       <div className="stats-section nodes-list">
         <h2>Nodes</h2>
         {nodes.map((node) => (
-          <div key={node.name} className={`node-item status-${node.status}`}>
+          <div
+            key={node.name}
+            className={`node-item status-${node.status} ${
+              selectedNodeId === node.name ? 'active' : ''
+            }`}
+            role="button"
+            tabIndex={0}
+            onClick={() => onNodeSelect(node.name)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onNodeSelect(node.name);
+              }
+            }}
+            aria-pressed={selectedNodeId === node.name}
+          >
             <div className="node-item-header">
               <div className="node-name">{node.name}</div>
               <div className="node-status">{node.status}</div>
