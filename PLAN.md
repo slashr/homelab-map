@@ -1,22 +1,23 @@
-# ExecPlan: Globe-Based Cluster View (TASK-004)
+# ExecPlan: Sidebar Width + Dependency Security
 
 ## Goal
-Replace the flat Leaflet map with an interactive 3D globe (Google Earth style) that still visualizes nodes and their connections, supports sidebar-driven focusing, and respects light/dark mode.
+Restore the Stats panel/sidebar to its intended width (it currently collapses to a sliver) and eliminate the outstanding `npm audit` vulnerabilities by upgrading or overriding the affected packages. Ship both fixes together per the request.
 
 ## Steps
-1. **Approach selection**
-   - Evaluate `react-globe.gl` (Three.js-based) for rendering HTML markers and arc connections.
-   - Sketch how node avatars, selection highlighting, and stats-panel interactions map onto the globe controls/API.
+1. **Diagnose sidebar shrink**
+   - Review `StatsPanel.css` and layout (`App.css`) to see why the flex item can collapse.
+   - Adjust the sidebar styles (e.g., enforce `flex: 0 0 width`, add min-width) and verify media queries still behave.
 
-2. **Implementation**
-   - Introduce the new dependency (`react-globe.gl` + `three`) and remove unused Leaflet packages.
-   - Rebuild `ClusterMap.tsx` around the globe component: render nodes as custom HTML elements, draw arcs for connections, animate focus on sidebar selection, and surface a lightweight info card in lieu of Leaflet popups.
-   - Update CSS to style the globe container, overlay cards, and ensure dark/light theming works against the WebGL canvas.
+2. **Address npm vulnerabilities**
+   - Inspect `npm audit` output (mostly transitives from `react-scripts`).
+   - Use `package.json` overrides (or targeted dependency bumps) to pull in patched versions (`@svgr/*`, `svgo`, `postcss`, `resolve-url-loader`, `webpack-dev-server`, etc.).
+   - Run `npm install` to update the lockfile and confirm `npm audit` reports zero vulnerabilities.
 
-3. **Validation & polish**
-   - Run `npm install` (to refresh lockfile) and `npm run build` to confirm the React bundle passes TypeScript/ESLint.
-   - Manually sanity-check via reasoning (since no UI access) that selection + theming interactions fire through the new APIs.
+3. **Validation**
+   - `npm run build` to ensure CRA still compiles with the overrides.
+   - Note any audit/build logs for the PR.
 
 ## Validation
 - `cd frontend && npm install`
 - `cd frontend && npm run build`
+- `cd frontend && npm audit`

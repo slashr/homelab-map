@@ -1,5 +1,5 @@
 .stats-panel {
-  width: clamp(360px, 32vw, 440px);
+  --sidebar-width: clamp(360px, 32vw, 440px);
   height: 100%;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
   overflow-y: auto;
@@ -9,17 +9,21 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  max-width: var(--sidebar-width);
+  flex: 0 0 var(--sidebar-width);
 }
 
 @media (max-width: 1200px) {
   .stats-panel {
-    width: clamp(330px, 38vw, 380px);
+    --sidebar-width: clamp(330px, 38vw, 380px);
   }
 }
 
 @media (max-width: 900px) {
   .stats-panel {
-    width: 310px;
+    --sidebar-width: 310px;
   }
 }
 
