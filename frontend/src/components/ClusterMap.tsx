@@ -132,9 +132,12 @@ const SelectedNodeFocus: React.FC<{
   const focusDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reopenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectionTimeRef = useRef(0);
+  const selectedNodeLat = node?.lat ?? null;
+  const selectedNodeLon = node?.lon ?? null;
+  const selectedNodeName = node?.name ?? null;
 
   useEffect(() => {
-    if (!node) {
+    if (!selectedNodeName && !marker) {
       return;
     }
 
@@ -166,8 +169,8 @@ const SelectedNodeFocus: React.FC<{
     };
 
     const focusOnNode = () => {
-      const lat = marker?.getLatLng().lat ?? node.lat;
-      const lon = marker?.getLatLng().lng ?? node.lon;
+      const lat = marker?.getLatLng().lat ?? selectedNodeLat;
+      const lon = marker?.getLatLng().lng ?? selectedNodeLon;
       if (lat == null || lon == null || Number.isNaN(lat) || Number.isNaN(lon)) {
         return;
       }
@@ -217,7 +220,7 @@ const SelectedNodeFocus: React.FC<{
       }
       cleanupMovementListeners();
     };
-  }, [map, node, token, marker, clusterGroup]);
+  }, [map, selectedNodeLat, selectedNodeLon, selectedNodeName, token, marker, clusterGroup]);
 
   useEffect(() => {
     if (!marker) {
