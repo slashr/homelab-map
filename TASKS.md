@@ -15,9 +15,3 @@ _No active tasks (see `COMPLETED.md` for prior items)._
    - **Proposed Solution:** Persist incoming node snapshots to a lightweight time-series store (SQLite, Prometheus push gateway, or even append-only JSON) and add endpoints that can retrieve metrics over time for charting.
    - **Acceptance Criteria:** Aggregator keeps at least a rolling 24‑hour window (configurable) of node snapshots, `/api/stats` can return average/min/max in that window, and the frontend adds a “History” view that can consume that endpoint.
    - **Plan:** Define a storage abstraction (`HistoryStore`) that can write/read from disk, record each payload at `receive_node_data`, expose new FastAPI routes (e.g., `/api/history`), and update the frontend to visualize the data (e.g., sparkline in `StatsPanel`).
-
-3. [IN PROGRESS] Polish the 3D globe experience
-   - **Problem:** The globe constantly auto-rotates (annoying), node pins aren’t clickable, the sphere sits off-center, and the map lacks helpful detail such as borders/capital markers.
-   - **Proposed Solution:** Disable auto-rotation, make HTML markers interactive so clicks surface the info card, adjust layout styles so the globe canvas is visually centered, and add geographic overlays (country borders + capital labels) for more context.
-   - **Acceptance Criteria:** Globe stays still unless the user drags it, clicking a marker selects that node just like the sidebar, the sphere is centered within its panel, and the map shows subtle borders plus capital labels without overwhelming the UI.
-   - **Plan:** Update `ClusterMap` props/CSS to handle map-driven selection, tweak the React Globe config for centering + overlays, and ingest lightweight geo data (e.g., `world-atlas` for borders, a curated capitals list) rendered via polygon/label layers.
