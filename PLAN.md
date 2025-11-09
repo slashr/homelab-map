@@ -21,3 +21,17 @@ Restore the Stats panel/sidebar to its intended width (it currently collapses to
 - `cd frontend && npm install`
 - `cd frontend && npm run build`
 - `cd frontend && npm audit`
+
+## AXP Review-Reply Guidance
+
+### Goal
+Ensure the Codex review guidance in `AGENTS.md` explicitly forbids consolidating replies—every thread must be answered in place—so future AXP runs never miss a review conversation.
+
+### Steps
+1. Re-read the Codex review paragraph in `AGENTS.md` to understand the current wording about replying inline.
+2. Update that paragraph so it instructs: “Reply directly on each codex review thread; do not answer all of them in a single thread.”
+3. Apply the same clarification inside the FAW checklist near the step about replying inline.
+4. Review the entire file to confirm the new phrasing is clear and consistent, then save the updated guidance.
+
+### Validation
+- Confirm `AGENTS.md` now has the explicit per-thread reply instruction in both the general Codex review section and the FAW checklist.
