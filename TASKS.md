@@ -8,7 +8,7 @@
    - **Plan:** Add a helper near the existing constant to load the env var, update the comparisons inside `get_all_nodes`/`get_cluster_stats`, and ensure the new configuration is documented in `README.md`.
    - **Alternatives:** Keep the constant but expose a configuration file; chosen path keeps the fast startup flow simple and consistent with the rest of the service.
 
-2. [IN PROGRESS] Allow the agent home location to be injected via environment variables
+2. [DONE] Allow the agent home location to be injected via environment variables
    - **Problem:** `agent/agent.py` requires editing the `HOME_LOCATION` dictionary (lines 32‑36) to reposition the on-prem nodes, which is inconvenient and error-prone for people who run their own clusters.
    - **Proposed Solution:** Build `HOME_LOCATION` from optional env vars such as `HOME_CITY`, `HOME_LAT`, and `HOME_LON`, falling back to the current defaults when the vars are absent.
    - **Acceptance Criteria:** Agents can be redeployed without changing Python code by overriding env vars, and the README lists the new variables.
@@ -16,7 +16,7 @@
    - **Alternatives:** Accept a config file or ConfigMap for locations; env vars keep the DaemonSet spec minimal.
 
 ## Medium Effort
-1. Surface network throughput per node in the UI
+1. [IN PROGRESS] Surface network throughput per node in the UI
    - **Problem:** The README’s “Features” list still has [ ] for “Real-time network speed metrics,” and neither the agent nor the aggregator currently reports upload/download counters—only cpu/memory/disk. The frontend likewise lacks any place to display throughput.
    - **Proposed Solution:** Have the agent use `psutil.net_io_counters()` (per node) to calculate delta bytes over `REPORT_INTERVAL`, send those metrics in the payload, expose them via a new Pydantic field (e.g., `network_send_bytes_per_sec`), and update `StatsPanel`/`ClusterMap` to render the numbers.
    - **Acceptance Criteria:** Aggregator’s `/api/nodes` response includes per-node throughput, the frontend shows upload/download stats in the stats panel or popups, and the README checkbox becomes checked with a short note about how it works.

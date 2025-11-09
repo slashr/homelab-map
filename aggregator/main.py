@@ -101,6 +101,8 @@ class NodeData(BaseModel):
     memory_percent: Optional[float] = None
     disk_percent: Optional[float] = None
     network_interfaces: Optional[List[str]] = None
+    network_tx_bytes_per_sec: Optional[float] = None
+    network_rx_bytes_per_sec: Optional[float] = None
     connections: Optional[List[Connection]] = None
     timestamp: float = Field(default_factory=time.time)
 
@@ -119,6 +121,8 @@ class NodeStatus(BaseModel):
     cpu_percent: Optional[float] = None
     memory_percent: Optional[float] = None
     disk_percent: Optional[float] = None
+    network_tx_bytes_per_sec: Optional[float] = None
+    network_rx_bytes_per_sec: Optional[float] = None
     last_seen: str
     kubelet_version: Optional[str] = None
 
@@ -202,6 +206,8 @@ async def get_all_nodes():
                 cpu_percent=node_data.get('cpu_percent'),
                 memory_percent=node_data.get('memory_percent'),
                 disk_percent=node_data.get('disk_percent'),
+                network_tx_bytes_per_sec=node_data.get('network_tx_bytes_per_sec'),
+                network_rx_bytes_per_sec=node_data.get('network_rx_bytes_per_sec'),
                 last_seen=last_seen,
                 kubelet_version=node_data.get('kubelet_version')
             ))
@@ -279,9 +285,11 @@ async def get_cluster_stats():
     try:
         current_time = time.time()
         online_nodes = 0
-        total_cpu = 0
-        total_memory = 0
-        total_disk = 0
+        total_cpu = 0.0
+        total_memory = 0.0
+        total_disk = 0.0
+        total_network_tx = 0.0
+        total_network_rx = 0.0
         providers = {}
         
         for node_data in nodes_data.values():
@@ -295,6 +303,10 @@ async def get_cluster_stats():
                     total_memory += node_data['memory_percent']
                 if node_data.get('disk_percent'):
                     total_disk += node_data['disk_percent']
+                if node_data.get('network_tx_bytes_per_sec') is not None:
+                    total_network_tx += node_data['network_tx_bytes_per_sec']
+                if node_data.get('network_rx_bytes_per_sec') is not None:
+                    total_network_rx += node_data['network_rx_bytes_per_sec']
                 
                 provider = node_data.get('provider', 'unknown')
                 providers[provider] = providers.get(provider, 0) + 1
@@ -308,6 +320,8 @@ async def get_cluster_stats():
             "avg_cpu_percent": round(total_cpu / online_nodes, 2) if online_nodes > 0 else 0,
             "avg_memory_percent": round(total_memory / online_nodes, 2) if online_nodes > 0 else 0,
             "avg_disk_percent": round(total_disk / online_nodes, 2) if online_nodes > 0 else 0,
+            "avg_network_tx_bytes_per_sec": round(total_network_tx / online_nodes, 2) if online_nodes > 0 else 0,
+            "avg_network_rx_bytes_per_sec": round(total_network_rx / online_nodes, 2) if online_nodes > 0 else 0,
             "providers": providers,
             "total_connections": len(connections_data),
             "timestamp": datetime.utcnow().isoformat()

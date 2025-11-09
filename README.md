@@ -132,10 +132,12 @@ npm start
 ## Features
 
 - [x] Map overlay with node locations
-- [ ] Real-time network speed metrics
+- [x] Real-time network speed metrics (per-node transmit/receive bytes per second computed by the agent)
 - [ ] Latency visualization between nodes
 - [ ] Node health status
 - [ ] Historical data tracking
+
+Agents expose `network_tx_bytes_per_sec` and `network_rx_bytes_per_sec` in every payload, allowing the aggregator API and UI to display live upload/download speeds per node as well as cluster-wide averages.
 
 ## License
 
