@@ -336,19 +336,19 @@ jobs:
         run: |
           set -euo pipefail
           mapfile -t service_list < <(python3 - <<'PY'
-import json
-import os
+          import json
+          import os
 
-detected = json.loads(os.environ.get("CHANGED_SERVICES_JSON") or "[]")
-allowed_raw = os.environ.get("HOMELAB_DEPLOYMENTS_SERVICES", "")
-allowed = [item.strip() for item in allowed_raw.split(",") if item.strip()]
-if not allowed:
-    final = detected
-else:
-    final = [svc for svc in detected if svc in allowed]
-for svc in final:
-    print(svc)
-PY
+          detected = json.loads(os.environ.get("CHANGED_SERVICES_JSON") or "[]")
+          allowed_raw = os.environ.get("HOMELAB_DEPLOYMENTS_SERVICES", "")
+          allowed = [item.strip() for item in allowed_raw.split(",") if item.strip()]
+          if not allowed:
+              final = detected
+          else:
+              final = [svc for svc in detected if svc in allowed]
+          for svc in final:
+              print(svc)
+          PY
           )
           if [[ ${#service_list[@]} -eq 0 ]]; then
             echo "No deployments require image updates."
