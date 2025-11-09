@@ -1,5 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import Globe, { GlobeMethods } from 'react-globe.gl';
+import { feature } from 'topojson-client';
+import countriesTopo from 'world-atlas/countries-110m.json';
+import type { FeatureCollection, Geometry } from 'geojson';
+import { capitalLabels, CapitalLabel } from '../data/capitals';
 import { Node, Connection } from '../types';
 import { formatBytesPerSecond } from '../utils/format';
 import './ClusterMap.css';
@@ -10,6 +14,7 @@ interface ClusterMapProps {
   darkMode: boolean;
   selectedNodeId: string | null;
   selectionToken: number;
+  onNodeSelect?: (nodeName: string) => void;
 }
 
 interface GlobeNodeDatum extends Node {
@@ -85,9 +90,9 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
   darkMode,
   selectedNodeId,
   selectionToken,
+  onNodeSelect,
 }) => {
   const globeRef = useRef<GlobeMethods>();
-  const autoRotateResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const nodesWithLocation = useMemo(
     () =>
@@ -161,13 +166,20 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
   const focusLat = focusTarget?.lat ?? null;
   const focusLng = focusTarget?.lng ?? null;
 
+  const countryPolygons = useMemo(() => {
+    const geoJson = feature(
+      countriesTopo as any,
+      (countriesTopo as any).objects.countries
+    ) as unknown as FeatureCollection<Geometry>;
+    return geoJson.features;
+  }, []);
+
   useEffect(() => {
     if (!globeRef.current) {
       return;
     }
     const controls = globeRef.current.controls();
-    controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.45;
+    controls.autoRotate = false;
     controls.enableZoom = true;
     controls.minDistance = 180;
     controls.maxDistance = 750;
@@ -186,23 +198,7 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
     }
 
     globeRef.current.pointOfView({ lat: focusLat, lng: focusLng, altitude: 1.3 }, 900);
-    const controls = globeRef.current.controls();
-    controls.autoRotate = false;
-    if (autoRotateResetRef.current) {
-      clearTimeout(autoRotateResetRef.current);
-    }
-    autoRotateResetRef.current = setTimeout(() => {
-      controls.autoRotate = true;
-    }, 6000);
   }, [selectedNodeId, selectionToken, focusLat, focusLng]);
-
-  useEffect(() => {
-    return () => {
-      if (autoRotateResetRef.current) {
-        clearTimeout(autoRotateResetRef.current);
-      }
-    };
-  }, []);
 
   const renderMarker = useCallback(
     (nodeDatum: object) => {
@@ -212,6 +208,22 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
         datum.isSelected ? 'selected' : ''
       }`;
       container.title = datum.name;
+      container.tabIndex = 0;
+      container.setAttribute('role', 'button');
+      container.style.pointerEvents = 'auto';
+
+      const handleSelect = (event?: MouseEvent | KeyboardEvent) => {
+        event?.stopPropagation();
+        onNodeSelect?.(datum.name);
+      };
+
+      container.addEventListener('click', handleSelect);
+      container.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          handleSelect(event);
+        }
+      });
 
       const img = document.createElement('img');
       img.alt = datum.name;
@@ -223,7 +235,7 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
 
       return container;
     },
-    []
+    [onNodeSelect]
   );
 
   if (nodesWithLocation.length === 0) {
@@ -254,14 +266,27 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
           arcColor={(arc: object) => (arc as GlobeConnectionDatum).color}
           arcStroke={1.2}
           arcAltitude={(arc: object) => (arc as GlobeConnectionDatum).altitude}
-          arcDashLength={0.35}
-          arcDashGap={0.9}
-          arcDashAnimateTime={1800}
+          arcDashLength={1}
+          arcDashGap={0}
+          arcDashAnimateTime={0}
           arcsTransitionDuration={0}
           arcLabel={(arc: object) => {
             const datum = arc as GlobeConnectionDatum;
             return `${datum.label} · ${datum.latency.toFixed(1)} ms`;
           }}
+          polygonsData={countryPolygons}
+          polygonCapColor={() => (darkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)')}
+          polygonSideColor={() => 'rgba(0,0,0,0)'}
+          polygonStrokeColor={() => (darkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.25)')}
+          polygonsTransitionDuration={0}
+          labelsData={capitalLabels}
+          labelLat={(label) => (label as CapitalLabel).lat}
+          labelLng={(label) => (label as CapitalLabel).lng}
+          labelText={(label) => (label as CapitalLabel).name}
+          labelColor={() => (darkMode ? '#f5f5ff' : '#0b1740')}
+          labelSize={0.45}
+          labelDotRadius={0.18}
+          labelResolution={2}
         />
 
         {selectedNode && (
