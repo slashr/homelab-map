@@ -1,23 +1,20 @@
-# ExecPlan: Sidebar Width + Dependency Security
+# ExecPlan: Globe Connection Continuity Fix
 
 ## Goal
-Restore the Stats panel/sidebar to its intended width (it currently collapses to a sliver) and eliminate the outstanding `npm audit` vulnerabilities by upgrading or overriding the affected packages. Ship both fixes together per the request.
+Ensure the globe’s arcs render continuously between nodes (currently they appear broken/dashed beyond the intended animation), while keeping the new 3D map setup intact.
 
 ## Steps
-1. **Diagnose sidebar shrink**
-   - Review `StatsPanel.css` and layout (`App.css`) to see why the flex item can collapse.
-   - Adjust the sidebar styles (e.g., enforce `flex: 0 0 width`, add min-width) and verify media queries still behave.
+1. **Reproduce / inspect settings**
+   - Review the `arc*` props in `ClusterMap.tsx` to confirm which options (dash length/gap, altitude scaling) are making arcs look segmented.
+   - Check whether connections with missing coordinates are filtered correctly.
 
-2. **Address npm vulnerabilities**
-   - Inspect `npm audit` output (mostly transitives from `react-scripts`).
-   - Use `package.json` overrides (or targeted dependency bumps) to pull in patched versions (`@svgr/*`, `svgo`, `postcss`, `resolve-url-loader`, `webpack-dev-server`, etc.).
-   - Run `npm install` to update the lockfile and confirm `npm audit` reports zero vulnerabilities.
+2. **Adjust arc rendering**
+   - Update the arc configuration to draw solid lines (either disable dashes or tweak lengths) and clamp altitudes so they don’t collapse near the globe surface.
+   - Consider introducing `arcDashGap` tweaks or zeroing out the dash settings entirely when the animation isn’t needed.
 
 3. **Validation**
-   - `npm run build` to ensure CRA still compiles with the overrides.
-   - Note any audit/build logs for the PR.
+   - Run `npm run build` to ensure TypeScript/CRA compile with the new settings.
+   - Manually reason about the arcs (no UI access) and note the improvement in the PR description.
 
 ## Validation
-- `cd frontend && npm install`
 - `cd frontend && npm run build`
-- `cd frontend && npm audit`

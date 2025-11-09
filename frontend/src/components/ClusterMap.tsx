@@ -254,9 +254,9 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
           arcColor={(arc: object) => (arc as GlobeConnectionDatum).color}
           arcStroke={1.2}
           arcAltitude={(arc: object) => (arc as GlobeConnectionDatum).altitude}
-          arcDashLength={0.35}
-          arcDashGap={0.9}
-          arcDashAnimateTime={1800}
+          arcDashLength={1}
+          arcDashGap={0}
+          arcDashAnimateTime={0}
           arcsTransitionDuration={0}
           arcLabel={(arc: object) => {
             const datum = arc as GlobeConnectionDatum;
