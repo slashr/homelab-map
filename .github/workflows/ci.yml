@@ -8,7 +8,17 @@ on:
   pull_request:
 
 jobs:
+  workflow-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run actionlint
+        uses: rhysd/actionlint@v1
+
   tests:
+    needs: workflow-lint
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
