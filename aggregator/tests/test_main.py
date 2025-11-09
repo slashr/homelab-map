@@ -88,6 +88,8 @@ async def test_get_all_nodes_reports_statuses_based_on_last_seen(
                 "name": "node-online",
                 "hostname": "node-online",
                 "received_at": fixed_time - 30,
+                "network_tx_bytes_per_sec": 2048.0,
+                "network_rx_bytes_per_sec": 1024.0,
             },
             "node-warning": {
                 "name": "node-warning",
@@ -106,6 +108,8 @@ async def test_get_all_nodes_reports_statuses_based_on_last_seen(
     nodes = {node.name: node for node in response}
     assert nodes["node-online"].status == "online"
     assert nodes["node-online"].last_seen == "30s ago"
+    assert nodes["node-online"].network_tx_bytes_per_sec == pytest.approx(2048.0)
+    assert nodes["node-online"].network_rx_bytes_per_sec == pytest.approx(1024.0)
     assert nodes["node-warning"].status == "warning"
     assert nodes["node-warning"].last_seen == "1m ago"
     assert nodes["node-offline"].status == "offline"
@@ -128,6 +132,8 @@ async def test_get_cluster_stats_counts_only_online_nodes(
                 "cpu_percent": 50.0,
                 "memory_percent": 60.0,
                 "disk_percent": 70.0,
+                "network_tx_bytes_per_sec": 3000.0,
+                "network_rx_bytes_per_sec": 1500.0,
                 "provider": "aws",
             },
             "node-offline": {
@@ -137,6 +143,8 @@ async def test_get_cluster_stats_counts_only_online_nodes(
                 "cpu_percent": 20.0,
                 "memory_percent": 30.0,
                 "disk_percent": 40.0,
+                "network_tx_bytes_per_sec": 10.0,
+                "network_rx_bytes_per_sec": 5.0,
                 "provider": "do",
             },
         }
@@ -155,6 +163,8 @@ async def test_get_cluster_stats_counts_only_online_nodes(
     assert stats["avg_cpu_percent"] == 50.0
     assert stats["avg_memory_percent"] == 60.0
     assert stats["avg_disk_percent"] == 70.0
+    assert stats["avg_network_tx_bytes_per_sec"] == pytest.approx(3000.0)
+    assert stats["avg_network_rx_bytes_per_sec"] == pytest.approx(1500.0)
     assert stats["providers"] == {"aws": 1}
     assert stats["total_connections"] == 1
 

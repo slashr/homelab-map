@@ -1,5 +1,6 @@
 import React from 'react';
 import { ClusterStats, Node } from '../types';
+import { formatBytesPerSecond } from '../utils/format';
 import './StatsPanel.css';
 
 interface StatsPanelProps {
@@ -86,6 +87,21 @@ const StatsPanel: React.FC<StatsPanelProps> = ({ stats, nodes, darkMode }) => {
             ></div>
           </div>
         </div>
+
+        <div className="throughput-cards">
+          <div className="throughput-card upload">
+            <div className="throughput-label">Upload</div>
+            <div className="throughput-value">
+              {formatBytesPerSecond(stats.avg_network_tx_bytes_per_sec)}
+            </div>
+          </div>
+          <div className="throughput-card download">
+            <div className="throughput-label">Download</div>
+            <div className="throughput-value">
+              {formatBytesPerSecond(stats.avg_network_rx_bytes_per_sec)}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="stats-section">
@@ -102,8 +118,17 @@ const StatsPanel: React.FC<StatsPanelProps> = ({ stats, nodes, darkMode }) => {
         <h2>Nodes</h2>
         {nodes.map((node) => (
           <div key={node.name} className={`node-item status-${node.status}`}>
-            <div className="node-name">{node.name}</div>
-            <div className="node-status">{node.status}</div>
+            <div className="node-item-header">
+              <div className="node-name">{node.name}</div>
+              <div className="node-status">{node.status}</div>
+            </div>
+            {(node.network_tx_bytes_per_sec !== undefined ||
+              node.network_rx_bytes_per_sec !== undefined) && (
+              <div className="node-throughput">
+                <span>⬆ {formatBytesPerSecond(node.network_tx_bytes_per_sec)}</span>
+                <span>⬇ {formatBytesPerSecond(node.network_rx_bytes_per_sec)}</span>
+              </div>
+            )}
           </div>
         ))}
       </div>

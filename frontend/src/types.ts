@@ -11,6 +11,8 @@ export interface Node {
   cpu_percent?: number;
   memory_percent?: number;
   disk_percent?: number;
+  network_tx_bytes_per_sec?: number;
+  network_rx_bytes_per_sec?: number;
   last_seen: string;
   kubelet_version?: string;
 }
@@ -34,6 +36,8 @@ export interface ClusterStats {
   avg_cpu_percent: number;
   avg_memory_percent: number;
   avg_disk_percent: number;
+  avg_network_tx_bytes_per_sec: number;
+  avg_network_rx_bytes_per_sec: number;
   providers: Record<string, number>;
   total_connections?: number;
   timestamp: string;

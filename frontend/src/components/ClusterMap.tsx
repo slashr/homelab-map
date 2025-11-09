@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, GeoJSON } from
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L, { LatLngBoundsExpression } from 'leaflet';
 import { Node, Connection } from '../types';
+import { formatBytesPerSecond } from '../utils/format';
 import ConnectionLines from './ConnectionLines';
 import './ClusterMap.css';
 
@@ -379,6 +380,17 @@ const ClusterMap: React.FC<ClusterMapProps> = ({ nodes, connections, darkMode })
                     <div className="popup-row">
                       <span className="label">Disk:</span>
                       <span>{node.disk_percent.toFixed(1)}%</span>
+                    </div>
+                  )}
+
+                  {(node.network_tx_bytes_per_sec !== undefined ||
+                    node.network_rx_bytes_per_sec !== undefined) && (
+                    <div className="popup-row throughput-row">
+                      <span className="label">Network:</span>
+                      <span className="throughput-values">
+                        ⬆ {formatBytesPerSecond(node.network_tx_bytes_per_sec)} · ⬇{' '}
+                        {formatBytesPerSecond(node.network_rx_bytes_per_sec)}
+                      </span>
                     </div>
                   )}
                   

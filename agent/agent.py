@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 AGGREGATOR_URL = os.getenv('AGGREGATOR_URL', 'http://homelab-map-aggregator:8000')
 REPORT_INTERVAL = int(os.getenv('REPORT_INTERVAL', '30'))  # seconds
 NODE_NAME = os.getenv('NODE_NAME', socket.gethostname())
+NETWORK_COUNTER_SNAPSHOT = None
 
 # =============================================================================
 # CONFIGURATION: Update your home location here
@@ -66,6 +67,38 @@ def _build_home_location() -> dict:
 
 
 HOME_LOCATION = _build_home_location()
+
+
+def _measure_network_throughput() -> dict:
+    """Calculate bytes-per-second deltas using psutil net_io_counters."""
+    global NETWORK_COUNTER_SNAPSHOT
+    try:
+        counters = psutil.net_io_counters()
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.warning(f"Failed to read network counters: {exc}")
+        return {
+            'network_tx_bytes_per_sec': 0.0,
+            'network_rx_bytes_per_sec': 0.0,
+        }
+
+    now = time.time()
+    if NETWORK_COUNTER_SNAPSHOT is None:
+        NETWORK_COUNTER_SNAPSHOT = (counters.bytes_sent, counters.bytes_recv, now)
+        return {
+            'network_tx_bytes_per_sec': 0.0,
+            'network_rx_bytes_per_sec': 0.0,
+        }
+
+    prev_sent, prev_recv, prev_time = NETWORK_COUNTER_SNAPSHOT
+    elapsed = max(now - prev_time, 1e-3)
+    tx_per_sec = max(counters.bytes_sent - prev_sent, 0) / elapsed
+    rx_per_sec = max(counters.bytes_recv - prev_recv, 0) / elapsed
+    NETWORK_COUNTER_SNAPSHOT = (counters.bytes_sent, counters.bytes_recv, now)
+
+    return {
+        'network_tx_bytes_per_sec': tx_per_sec,
+        'network_rx_bytes_per_sec': rx_per_sec,
+    }
 
 # Cloud provider datacenter locations (no need to change these)
 CLOUD_LOCATIONS = {
@@ -141,6 +174,8 @@ def get_node_info():
         # Get network interfaces
         net_if_addrs = psutil.net_if_addrs()
         node_info['network_interfaces'] = list(net_if_addrs.keys())
+
+        node_info.update(_measure_network_throughput())
         
         logger.info(f"Collected info for node: {NODE_NAME}")
         return node_info
