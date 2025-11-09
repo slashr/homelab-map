@@ -16,6 +16,6 @@ _No active tasks (see `COMPLETED.md` for prior items)._
    - **Acceptance Criteria:** Aggregator keeps at least a rolling 24‑hour window (configurable) of node snapshots, `/api/stats` can return average/min/max in that window, and the frontend adds a “History” view that can consume that endpoint.
    - **Plan:** Define a storage abstraction (`HistoryStore`) that can write/read from disk, record each payload at `receive_node_data`, expose new FastAPI routes (e.g., `/api/history`), and update the frontend to visualize the data (e.g., sparkline in `StatsPanel`).
 
-3. When I click on any of the nodes in the sidebar the info panel stays visible. but when I click on Michael or Jim it disappears after a second or two. Please fix
+3. [IN PROGRESS] When I click on any of the nodes in the sidebar the info panel stays visible. but when I click on Michael or Jim it disappears after a second or two. Please fix
 
 4. Change from map layout to a globe instead. Google Earth style
