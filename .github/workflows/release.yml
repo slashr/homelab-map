@@ -24,7 +24,61 @@ env:
   SKIP_RELEASE_LABELS: ${{ vars.SKIP_RELEASE_LABELS != '' && vars.SKIP_RELEASE_LABELS || 'skip release,no release,ci-only,infra-only,docs-only' }}
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      agent: ${{ steps.publish.outputs.agent }}
+      aggregator: ${{ steps.publish.outputs.aggregator }}
+      frontend: ${{ steps.publish.outputs.frontend }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect service changes
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@v3
+        with:
+          base: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          ref: ${{ github.sha }}
+          filters: |
+            agent:
+              - 'agent/**'
+            aggregator:
+              - 'aggregator/**'
+            frontend:
+              - 'frontend/**'
+
+      - name: Publish change outputs
+        id: publish
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          AGENT: ${{ steps.filter.outputs.agent }}
+          AGGREGATOR: ${{ steps.filter.outputs.aggregator }}
+          FRONTEND: ${{ steps.filter.outputs.frontend }}
+        run: |
+          set -euo pipefail
+          agent="${AGENT:-false}"
+          aggregator="${AGGREGATOR:-false}"
+          frontend="${FRONTEND:-false}"
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            agent="true"
+            aggregator="true"
+            frontend="true"
+          fi
+          {
+            echo "agent=${agent}"
+            echo "aggregator=${aggregator}"
+            echo "frontend=${frontend}"
+          } >> "$GITHUB_OUTPUT"
+
   prepare-release:
+    needs: changes
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
@@ -123,43 +177,13 @@ jobs:
               env_file.write(f"RELEASE_ENABLED={enabled}\n")
           PY
 
-      - name: Determine diff base
-        if: env.RELEASE_ENABLED == 'true' && github.event_name != 'workflow_dispatch'
-        id: diff_base
-        run: |
-          set -euo pipefail
-          base="${{ github.event.before }}"
-          if [[ -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]]; then
-            if git rev-parse HEAD^ >/dev/null 2>&1; then
-              base="$(git rev-parse HEAD^)"
-            else
-              base="$(git hash-object -t tree /dev/null)"
-            fi
-          fi
-          echo "sha=$base" >> "$GITHUB_OUTPUT"
-
-      - name: Detect changed services
-        if: env.RELEASE_ENABLED == 'true' && github.event_name != 'workflow_dispatch'
-        id: service_filter
-        uses: dorny/paths-filter@v3
-        with:
-          base: ${{ steps.diff_base.outputs.sha }}
-          ref: ${{ github.sha }}
-          filters: |
-            agent:
-              - 'agent/**'
-            aggregator:
-              - 'aggregator/**'
-            frontend:
-              - 'frontend/**'
-
       - name: Build service matrix
         id: service_matrix
         env:
           EVENT_NAME: ${{ github.event_name }}
-          AGENT_CHANGED: ${{ steps.service_filter.outputs.agent }}
-          AGGREGATOR_CHANGED: ${{ steps.service_filter.outputs.aggregator }}
-          FRONTEND_CHANGED: ${{ steps.service_filter.outputs.frontend }}
+          AGENT_CHANGED: ${{ needs.changes.outputs.agent }}
+          AGGREGATOR_CHANGED: ${{ needs.changes.outputs.aggregator }}
+          FRONTEND_CHANGED: ${{ needs.changes.outputs.frontend }}
         run: |
           python - <<'PY'
 import json

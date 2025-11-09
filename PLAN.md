@@ -1,21 +1,18 @@
-# ExecPlan: Accelerate CI Builds with Caching & Smart Service Selection
+# ExecPlan: Release Workflow Change-Detection Fix
 
 ## Goal
-Release workflow wastes time rebuilding every service image even when a PR only touches one folder. We will teach CI to (a) detect which services changed and skip untouched builds, and (b) reuse BuildKit cache across runs so repeated builds stay fast. Success means the Release workflow conditionally builds agent/aggregator/frontend images and imports/exports a shared cache so later runs hit warm layers.
+The `Release` workflow fails immediately because `build-and-push` references `needs.changes` even though no `changes` job exists in the workflow. We need to add a lightweight `changes` job (using `dorny/paths-filter`) whose outputs can be consumed downstream, restoring a valid job graph so Release runs and post-merge automation succeed again.
 
 ## Steps
-1. **Baseline & detection design** – Audit `.github/workflows` (especially `build-and-publish.yml` and `release.yml`) plus helper scripts to understand current build commands, image tags, and available inputs. Decide whether to use matrix jobs or a helper script for change detection.
-2. **Implement change filters** – Use `dorny/paths-filter` inside `release.yml` to compare the merged commit to its base and emit booleans for `agent`, `aggregator`, and `frontend`. Convert those booleans into a JSON list that downstream jobs can pass to the reusable build workflow so untouched services are skipped automatically.
-3. **Add BuildKit cache plumbing** – Enable BuildKit (`DOCKER_BUILDKIT=1`) and use `docker buildx build` (or `docker/build-push-action`) with `cache-from`/`cache-to` pointing at the GitHub Actions cache or GHCR. Ensure cache keys incorporate the service name so layers do not collide.
-4. **Docs & verification** – Document the new behavior in `README.md` (or `SETUP.md`) under the CI/deployment section so contributors know why builds may be skipped. Run `act`/dry-run locally if feasible; otherwise rely on `gh workflow run --dry-run` or shell logic linting.
+1. **Add dedicated `changes` job** – Create a top-level job that checks out the repo (with sufficient history) and runs `dorny/paths-filter` for `agent`, `aggregator`, and `frontend`. Normalize its outputs so manual dispatch still forces all services.
+2. **Wire outputs into existing jobs** – Make `prepare-release` depend on `changes`, update the service-matrix step to read from `needs.changes` outputs, and ensure gating logic uses that data without referencing undefined steps.
+3. **Verify + document** – Sanity check the YAML (lint via `yamllint`/`act` not required but run `gh workflow view`? we can rely on CI). Push branch, run CI, open PR, wait for Codex & release to confirm fix.
 
 ## Validation
-- `act` or shell unit tests for the change-detection helper (if script is Python/Node) to confirm the correct services flag flips for varied paths.
-- `shellcheck`/`yamllint` on modified scripts (if applicable).
-- After pushing, rely on the Release workflow itself to confirm only the touched services build; capture logs in the PR description.
+- Rely on GitHub Actions: once the PR merges, the Release workflow on `main` must succeed (no “workflow file issue”). Observe that the job list now includes `changes`, `prepare-release`, etc.
+- Optionally trigger a manual workflow_dispatch if permission allows; otherwise trust the push-trigger after merge.
 
 ## Progress
-- [x] Service detection wired into the Release workflow via `dorny/paths-filter`
-- [x] Build jobs respect the filtered service list
-- [x] BuildKit cache configured for every Docker build step
-- [x] Docs updated to explain skip logic and caching
+- [ ] `changes` job added and emits service flags
+- [ ] `prepare-release` consumes outputs without invalid references
+- [ ] Release run observed healthy post-merge
