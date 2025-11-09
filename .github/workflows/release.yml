@@ -33,8 +33,8 @@ jobs:
     outputs:
       version: ${{ steps.bump_version.outputs.version }}
       release_enabled: ${{ steps.service_gate.outputs.enabled }}
-      services: ${{ steps.detect_services.outputs.services }}
-      services_csv: ${{ steps.detect_services.outputs.services_csv }}
+      services: ${{ steps.service_matrix.outputs.services }}
+      services_csv: ${{ steps.service_matrix.outputs.services_csv }}
     steps:
       - name: Check out merged commit
         uses: actions/checkout@v4
@@ -123,57 +123,81 @@ jobs:
               env_file.write(f"RELEASE_ENABLED={enabled}\n")
           PY
 
-      - name: Detect changed services
-        id: detect_services
-        env:
-          BASE_SHA: ${{ github.event.before }}
-          HEAD_SHA: ${{ github.sha }}
-          EVENT_NAME: ${{ github.event_name }}
+      - name: Determine diff base
+        if: env.RELEASE_ENABLED == 'true' && github.event_name != 'workflow_dispatch'
+        id: diff_base
         run: |
           set -euo pipefail
-          FORCE=""
-          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
-            FORCE="--force-all"
+          base="${{ github.event.before }}"
+          if [[ -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]]; then
+            if git rev-parse HEAD^ >/dev/null 2>&1; then
+              base="$(git rev-parse HEAD^)"
+            else
+              base="$(git hash-object -t tree /dev/null)"
+            fi
           fi
-          services_json="$(python3 scripts/detect_changed_services.py --base "${BASE_SHA}" --head "${HEAD_SHA}" ${FORCE})"
-          services_json="${services_json//$'\n'/}"
-          export SERVICES_JSON="${services_json}"
-          services_csv="$(python3 - <<'PY'
+          echo "sha=$base" >> "$GITHUB_OUTPUT"
+
+      - name: Detect changed services
+        if: env.RELEASE_ENABLED == 'true' && github.event_name != 'workflow_dispatch'
+        id: service_filter
+        uses: dorny/paths-filter@v3
+        with:
+          base: ${{ steps.diff_base.outputs.sha }}
+          ref: ${{ github.sha }}
+          filters: |
+            agent:
+              - 'agent/**'
+            aggregator:
+              - 'aggregator/**'
+            frontend:
+              - 'frontend/**'
+
+      - name: Build service matrix
+        id: service_matrix
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          AGENT_CHANGED: ${{ steps.service_filter.outputs.agent }}
+          AGGREGATOR_CHANGED: ${{ steps.service_filter.outputs.aggregator }}
+          FRONTEND_CHANGED: ${{ steps.service_filter.outputs.frontend }}
+        run: |
+          python - <<'PY'
 import json
 import os
-data = json.loads(os.environ.get("SERVICES_JSON") or "[]")
-print(",".join(data))
+
+event = os.environ.get("EVENT_NAME")
+services = []
+if event == "workflow_dispatch":
+    services = ["agent", "aggregator", "frontend"]
+else:
+    mapping = {
+        "agent": os.environ.get("AGENT_CHANGED"),
+        "aggregator": os.environ.get("AGGREGATOR_CHANGED"),
+        "frontend": os.environ.get("FRONTEND_CHANGED"),
+    }
+    services = [svc for svc, flag in mapping.items() if flag == "true"]
+
+services_json = json.dumps(services)
+services_csv = ",".join(services)
+with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+    fh.write(f"services={services_json}\n")
+    fh.write(f"services_csv={services_csv}\n")
+    fh.write(f"service_count={len(services)}\n")
 PY
-          )"
-          services_csv="${services_csv//$'\n'/}"
-          {
-            echo "services=${services_json}"
-            echo "services_csv=${services_csv}"
-          } >> "$GITHUB_OUTPUT"
-          if [[ -z "${services_json}" ]]; then
-            echo "Detected services output empty; defaulting to []."
-          fi
-          if [[ "${services_json:-[]}" == "[]" ]]; then
-            echo "No service directories changed."
-          else
-            echo "Services to build: ${services_json}"
-          fi
 
       - name: Apply service change gate
         id: service_gate
         env:
           RELEASE_ENABLED: ${{ env.RELEASE_ENABLED }}
-          SERVICES_JSON: ${{ steps.detect_services.outputs.services || '[]' }}
+          SERVICE_COUNT: ${{ steps.service_matrix.outputs.service_count }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           enabled="${RELEASE_ENABLED:-false}"
-          services="${SERVICES_JSON:-[]}"
-          if [[ -z "${services}" ]]; then
-            services="[]"
-          fi
-          if [[ "${services}" == "[]" ]]; then
+          count="${SERVICE_COUNT:-0}"
+          if [[ "${EVENT_NAME}" != "workflow_dispatch" && "${enabled}" == "true" && "${count}" == "0" ]]; then
             enabled="false"
-            echo "Release disabled: no service directories changed."
+            echo "Release skipped: no service directories changed."
           fi
           echo "enabled=${enabled}" >> "$GITHUB_OUTPUT"
           echo "RELEASE_ENABLED=${enabled}" >> "$GITHUB_ENV"

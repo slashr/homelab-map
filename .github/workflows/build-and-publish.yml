@@ -39,7 +39,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VERSION: ${{ inputs.version }}
-      SERVICES_JSON: ${{ inputs.services != '' && inputs.services || '["agent","aggregator","frontend"]' }}
     strategy:
       matrix:
         service: ${{ fromJSON(inputs.services != '' && inputs.services || '["agent","aggregator","frontend"]') }}
