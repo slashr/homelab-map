@@ -22,6 +22,16 @@
    - **Solution:** Share selected-node state between StatsPanel and ClusterMap, pan/zoom to the node, and highlight markers/rows.
    - **Acceptance Criteria:** Clicking a node centers the map with smooth feedback in both themes.
 
+3. Sidebar node clicks should zoom to individual markers
+   - **Problem:** Even after highlighting, the map sometimes stayed zoomed out enough to show only clustered counts.
+   - **Solution:** Track marker references, use `zoomToShowLayer`, and fly the map to at least zoom 9 so the selected marker is visible/opened.
+   - **Acceptance Criteria:** A single click focuses the individual marker regardless of clustering state.
+
+4. Remove the horizontal gap when the map is fully zoomed out
+   - **Problem:** At world view a strip of background was visible between the sidebar and map.
+   - **Solution:** Increase the sidebar’s default width (with responsive clamps) so the map edge aligns with it at all zoom levels.
+   - **Acceptance Criteria:** No gap appears when fully zoomed out; layout stays responsive.
+
 ## High Effort
 1. Accelerate CI builds with caching and smarter service selection
    - **Problem:** Every PR rebuilt all service images, wasting Release time.
