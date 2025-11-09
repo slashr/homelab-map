@@ -39,7 +39,7 @@
    - **Acceptance Criteria:** Aggregator keeps at least a rolling 24‑hour window (configurable) of node snapshots, `/api/stats` can return average/min/max in that window, and the frontend adds a “History” view that can consume that endpoint.
    - **Plan:** Define a storage abstraction (`HistoryStore`) that can write/read from disk, record each payload at `receive_node_data`, expose new FastAPI routes (e.g., `/api/history`), and update the frontend to visualize the data (e.g., sparkline in `StatsPanel`).
 
-2. [IN PROGRESS] Accelerate CI builds with caching and smarter service selection
+2. [DONE] Accelerate CI builds with caching and smarter service selection
    - **Problem:** Every PR rebuilds agent, aggregator, and frontend images even when unrelated files change, leading to long Release workflows.
    - **Proposed Solution:** Teach the GitHub Actions workflows (or Makefile scripts) to reuse Docker layer caches and skip service builds that have no file changes, using path filters or a manifest of inputs per service.
    - **Acceptance Criteria:** A PR that only touches the frontend avoids rebuilding agent/aggregator images, Docker caching is enabled so repeated builds run faster, and documentation explains how the skip logic works.
