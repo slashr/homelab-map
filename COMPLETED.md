@@ -37,6 +37,11 @@
    - **Solution:** Refined `SelectedNodeFocus` to wait for fly-to completion before opening the popup, added a short window that reopens popups closed by clustering, and limited the hook dependencies to stable node identifiers so telemetry updates don’t refire the focus logic.
    - **Acceptance Criteria:** Clicking Michael or Jim keeps their info panel open until the user dismisses it, and the behavior matches other nodes.
 
+6. Replace the flat map with an interactive globe
+   - **Problem:** The UI needed a Google-Earth-like experience instead of the existing Leaflet world map.
+   - **Solution:** Swapped the Leaflet stack for `react-globe.gl`, rendered nodes as HTML avatars hovering above the sphere, drew latency arcs for every connection, added a floating info card, and wired sidebar selections into the globe point-of-view animation.
+   - **Acceptance Criteria:** Nodes and connections render on a 3D globe in both themes, selecting a node or toggling the sidebar focuses the correct spot, and the card surfaces the same metrics previously shown in the map popup.
+
 ## High Effort
 1. Accelerate CI builds with caching and smarter service selection
    - **Problem:** Every PR rebuilt all service images, wasting Release time.

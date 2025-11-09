@@ -15,5 +15,3 @@ _No active tasks (see `COMPLETED.md` for prior items)._
    - **Proposed Solution:** Persist incoming node snapshots to a lightweight time-series store (SQLite, Prometheus push gateway, or even append-only JSON) and add endpoints that can retrieve metrics over time for charting.
    - **Acceptance Criteria:** Aggregator keeps at least a rolling 24‑hour window (configurable) of node snapshots, `/api/stats` can return average/min/max in that window, and the frontend adds a “History” view that can consume that endpoint.
    - **Plan:** Define a storage abstraction (`HistoryStore`) that can write/read from disk, record each payload at `receive_node_data`, expose new FastAPI routes (e.g., `/api/history`), and update the frontend to visualize the data (e.g., sparkline in `StatsPanel`).
-
-3. Change from map layout to a globe instead. Google Earth style

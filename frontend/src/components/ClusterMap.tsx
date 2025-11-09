@@ -1,109 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, GeoJSON } from 'react-leaflet';
-import MarkerClusterGroup from 'react-leaflet-cluster';
-import L, { LatLngBoundsExpression } from 'leaflet';
-import 'leaflet.markercluster';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import Globe, { GlobeMethods } from 'react-globe.gl';
 import { Node, Connection } from '../types';
 import { formatBytesPerSecond } from '../utils/format';
-import ConnectionLines from './ConnectionLines';
 import './ClusterMap.css';
-
-// Fix for default marker icons in React Leaflet
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-
-let DefaultIcon = L.icon({
-  iconUrl: icon,
-  shadowUrl: iconShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
-
-L.Marker.prototype.options.icon = DefaultIcon;
-
-// Map node names to character images
-const getCharacterImage = (nodeName: string): string => {
-  // Extract character name from node name (e.g., "michael-pi" -> "michael")
-  const character = nodeName.split('-')[0].toLowerCase();
-  
-  // Use local image if available, otherwise fallback to UI Avatars
-  const localImage = `/characters/${character}.jpg`;
-  
-  // Return local image path (will fallback to UI Avatars via onError in img tag)
-  return localImage;
-};
-
-// Get fallback avatar for when local image fails to load
-const getFallbackAvatar = (nodeName: string): string => {
-  const character = nodeName.split('-')[0].toLowerCase();
-  const characterNames: Record<string, string> = {
-    'michael': 'Michael+Scott',
-    'jim': 'Jim+Halpert',
-    'dwight': 'Dwight+Schrute',
-    'angela': 'Angela+Martin',
-    'stanley': 'Stanley+Hudson',
-    'phyllis': 'Phyllis+Vance',
-    'toby': 'Toby+Flenderson',
-  };
-
-  const characterColors: Record<string, string> = {
-    'michael': '667eea',
-    'jim': '4285F4',
-    'dwight': 'FFC107',
-    'angela': '9c27b0',
-    'stanley': 'ff9800',
-    'phyllis': '4caf50',
-    'toby': '795548',
-  };
-  
-  const fallbackName = characterNames[character] || character;
-  const fallbackColor = characterColors[character] || '607D8B';
-  
-  return `https://ui-avatars.com/api/?name=${fallbackName}&size=128&background=${fallbackColor}&color=fff&bold=true`;
-};
-
-const SIDEBAR_FOCUS_ZOOM = 9;
-
-// Custom markers with character images
-const getMarkerIcon = (nodeName: string, status: string, isSelected: boolean) => {
-  const imageUrl = getCharacterImage(nodeName);
-  
-  // Status border colors
-  const statusColors: Record<string, string> = {
-    'online': '#4caf50',
-    'warning': '#ff9800',
-    'offline': '#9e9e9e',
-  };
-  
-  const borderColor = isSelected ? '#ffd54f' : statusColors[status] || '#2196F3';
-  
-  const fallbackUrl = getFallbackAvatar(nodeName);
-  
-  const html = `
-    <div style="
-      width: 50px;
-      height: 50px;
-      border-radius: 50%;
-      border: ${isSelected ? '4px' : '3px'} solid ${borderColor};
-      overflow: hidden;
-      background: white;
-      box-shadow: ${isSelected ? '0 0 14px rgba(255, 213, 79, 0.8)' : '0 2px 8px rgba(0,0,0,0.3)'};
-    ">
-      <img src="${imageUrl}" 
-           onerror="this.src='${fallbackUrl}'"
-           style="width: 100%; height: 100%; object-fit: cover;"
-           alt="Character" />
-    </div>
-  `;
-
-  return L.divIcon({
-    html: html,
-    className: `character-marker${isSelected ? ' selected' : ''}`,
-    iconSize: [50, 50],
-    iconAnchor: [25, 25],
-    popupAnchor: [0, -25],
-  });
-};
 
 interface ClusterMapProps {
   nodes: Node[];
@@ -113,271 +12,71 @@ interface ClusterMapProps {
   selectionToken: number;
 }
 
-const WORLD_BOUNDS: LatLngBoundsExpression = [
-  [-85, -180],
-  [85, 180],
-];
+interface GlobeNodeDatum extends Node {
+  lat: number;
+  lng: number;
+  isSelected: boolean;
+  theme: 'dark' | 'light';
+}
 
-const clampToRange = (value: number, min: number, max: number) => {
-  return Math.max(min, Math.min(max, value));
+interface GlobeConnectionDatum {
+  startLat: number;
+  startLng: number;
+  endLat: number;
+  endLng: number;
+  color: [string, string];
+  altitude: number;
+  latency: number;
+  label: string;
+}
+
+const DARK_GLOBE = 'https://unpkg.com/three-globe/example/img/earth-night.jpg';
+const LIGHT_GLOBE = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
+const BUMP_MAP = 'https://unpkg.com/three-globe/example/img/earth-topology.png';
+const STARS = 'https://unpkg.com/three-globe/example/img/night-sky.png';
+
+const getCharacterImage = (nodeName: string): string => {
+  const character = nodeName.split('-')[0].toLowerCase();
+  return `/characters/${character}.jpg`;
 };
 
-const SelectedNodeFocus: React.FC<{
-  node?: Node;
-  marker?: L.Marker | null;
-  clusterGroup?: L.MarkerClusterGroup | null;
-  token: number;
-}> = ({ node, marker, clusterGroup, token }) => {
-  const map = useMap();
-  const focusDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reopenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const selectionTimeRef = useRef(0);
-  const selectedNodeLat = node?.lat ?? null;
-  const selectedNodeLon = node?.lon ?? null;
-  const selectedNodeName = node?.name ?? null;
-
-  useEffect(() => {
-    if (!selectedNodeName && !marker) {
-      return;
-    }
-
-    selectionTimeRef.current = Date.now();
-
-    if (focusDelayRef.current) {
-      clearTimeout(focusDelayRef.current);
-      focusDelayRef.current = null;
-    }
-
-    let moveEndHandler: (() => void) | null = null;
-    let flyFallbackTimeout: ReturnType<typeof setTimeout> | null = null;
-
-    const cleanupMovementListeners = () => {
-      if (moveEndHandler) {
-        map.off('moveend', moveEndHandler);
-        moveEndHandler = null;
-      }
-      if (flyFallbackTimeout) {
-        clearTimeout(flyFallbackTimeout);
-        flyFallbackTimeout = null;
-      }
-    };
-
-    const ensurePopupOpen = () => {
-      if (marker) {
-        marker.openPopup();
-      }
-    };
-
-    const focusOnNode = () => {
-      const lat = marker?.getLatLng().lat ?? selectedNodeLat;
-      const lon = marker?.getLatLng().lng ?? selectedNodeLon;
-      if (lat == null || lon == null || Number.isNaN(lat) || Number.isNaN(lon)) {
-        return;
-      }
-
-      const latLng = L.latLng(lat, lon);
-      const zoomTarget = Math.max(map.getZoom(), SIDEBAR_FOCUS_ZOOM);
-      const needsMove =
-        map.getZoom() < zoomTarget ||
-        map.getCenter().distanceTo(latLng) > 0.0001;
-
-      if (!needsMove) {
-        ensurePopupOpen();
-        return;
-      }
-
-      moveEndHandler = () => {
-        cleanupMovementListeners();
-        ensurePopupOpen();
-      };
-
-      map.once('moveend', moveEndHandler);
-      map.flyTo(latLng, zoomTarget, {
-        animate: true,
-        duration: 0.7,
-      });
-
-      flyFallbackTimeout = setTimeout(() => {
-        cleanupMovementListeners();
-        ensurePopupOpen();
-      }, 1200);
-    };
-
-    const runFocus = () => {
-      if (marker && clusterGroup) {
-        clusterGroup.zoomToShowLayer(marker, focusOnNode);
-      } else {
-        focusOnNode();
-      }
-    };
-
-    focusDelayRef.current = setTimeout(runFocus, 150);
-
-    return () => {
-      if (focusDelayRef.current) {
-        clearTimeout(focusDelayRef.current);
-        focusDelayRef.current = null;
-      }
-      cleanupMovementListeners();
-    };
-  }, [map, selectedNodeLat, selectedNodeLon, selectedNodeName, token, marker, clusterGroup]);
-
-  useEffect(() => {
-    if (!marker) {
-      return;
-    }
-
-    const handlePopupClose = () => {
-      const elapsed = Date.now() - selectionTimeRef.current;
-      if (elapsed > 2500) {
-        return;
-      }
-
-      if (reopenTimeoutRef.current) {
-        clearTimeout(reopenTimeoutRef.current);
-      }
-
-      reopenTimeoutRef.current = setTimeout(() => {
-        if (marker && !marker.isPopupOpen()) {
-          marker.openPopup();
-        }
-      }, 200);
-    };
-
-    marker.on('popupclose', handlePopupClose);
-
-    return () => {
-      marker.off('popupclose', handlePopupClose);
-      if (reopenTimeoutRef.current) {
-        clearTimeout(reopenTimeoutRef.current);
-        reopenTimeoutRef.current = null;
-      }
-    };
-  }, [marker]);
-
-  return null;
-};
-
-const SingleWorldView: React.FC = () => {
-  const map = useMap();
-  const isInitialized = useRef(false);
-
-  useEffect(() => {
-    // Allow initial positioning before enforcing bounds
-    const timer = setTimeout(() => {
-      isInitialized.current = true;
-    }, 1000);
-
-    const keepWithinWorld = () => {
-      // Only enforce bounds after initialization
-      if (!isInitialized.current) return;
-
-      const center = map.getCenter();
-      const clampedLat = clampToRange(center.lat, -85, 85);
-      const clampedLng = clampToRange(center.lng, -180, 180);
-
-      if (center.lat !== clampedLat || center.lng !== clampedLng) {
-        map.setView([clampedLat, clampedLng], map.getZoom(), { animate: false });
-      }
-    };
-
-    map.on('moveend', keepWithinWorld);
-
-    return () => {
-      clearTimeout(timer);
-      map.off('moveend', keepWithinWorld);
-    };
-  }, [map]);
-
-  return null;
-};
-
-// Component to highlight countries where nodes are located
-const CountryHighlights: React.FC<{ nodes: Node[], darkMode: boolean }> = ({ nodes, darkMode }) => {
-  const [geoData, setGeoData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  
-  useEffect(() => {
-    // Fetch world countries GeoJSON
-    setIsLoading(true);
-    fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
-      .then(res => res.json())
-      .then(data => {
-        setGeoData(data);
-        setIsLoading(false);
-      })
-      .catch(err => {
-        console.error('Failed to load country data:', err);
-        setIsLoading(false);
-      });
-  }, []);
-  
-  if (isLoading || !geoData || nodes.length === 0) return null;
-  
-  // Determine which countries have nodes
-  const countriesWithNodes = new Set<string>();
-  nodes.forEach(node => {
-    if (node.location?.includes('Germany')) {
-      countriesWithNodes.add('Germany');
-    }
-    if (node.location?.includes('CA') || node.location?.includes('IA') || 
-        node.location?.includes('California') || node.location?.includes('Iowa')) {
-      countriesWithNodes.add('United States of America');
-    }
-  });
-  
-  const style = (feature: any) => {
-    const countryName = feature.properties.ADMIN || feature.properties.name;
-    const isHighlighted = countriesWithNodes.has(countryName);
-    
-    return {
-      fillColor: isHighlighted ? (darkMode ? '#667eea' : '#4285F4') : 'transparent',
-      fillOpacity: isHighlighted ? 0.15 : 0,
-      color: isHighlighted ? (darkMode ? '#667eea' : '#4285F4') : 'transparent',
-      weight: isHighlighted ? 2 : 0,
-      opacity: isHighlighted ? 0.5 : 0,
-    };
+const getFallbackAvatar = (nodeName: string): string => {
+  const character = nodeName.split('-')[0].toLowerCase();
+  const fallbackNameMap: Record<string, string> = {
+    michael: 'Michael+Scott',
+    jim: 'Jim+Halpert',
+    dwight: 'Dwight+Schrute',
+    angela: 'Angela+Martin',
+    stanley: 'Stanley+Hudson',
+    phyllis: 'Phyllis+Vance',
+    toby: 'Toby+Flenderson',
   };
-  
-  return <GeoJSON data={geoData} style={style} />;
+  const fallbackColorMap: Record<string, string> = {
+    michael: '667eea',
+    jim: '4285F4',
+    dwight: 'FFC107',
+    angela: '9c27b0',
+    stanley: 'ff9800',
+    phyllis: '4caf50',
+    toby: '795548',
+  };
+
+  const fallbackName = fallbackNameMap[character] || character;
+  const fallbackColor = fallbackColorMap[character] || '607D8B';
+  return `https://ui-avatars.com/api/?name=${fallbackName}&size=128&background=${fallbackColor}&color=fff&bold=true`;
 };
 
-// Component to fit map bounds to all markers (only on first load)
-const FitBounds: React.FC<{ nodes: Node[] }> = ({ nodes }) => {
-  const map = useMap();
-  const hasFitted = useRef(false);
-  
-  useEffect(() => {
-    // Only fit bounds once when nodes first load, not on every refresh
-    if (nodes.length > 0 && !hasFitted.current) {
-      // Validate all coordinates before creating bounds
-      const validCoords = nodes
-        .filter(node => 
-          node.lat != null && 
-          node.lon != null && 
-          !isNaN(node.lat) && 
-          !isNaN(node.lon) &&
-          isFinite(node.lat) &&
-          isFinite(node.lon)
-        )
-        .map(node => [node.lat!, node.lon!] as [number, number]);
-      
-      // Only fit bounds if we have valid coordinates
-      if (validCoords.length > 0) {
-        const bounds = L.latLngBounds(validCoords);
-        
-        // Fit bounds with padding
-        map.fitBounds(bounds, {
-          padding: [50, 50],
-          maxZoom: 6, // Don't zoom in too close
-        });
-        
-        hasFitted.current = true;
-      }
-    }
-  }, [nodes, map]);
-  
-  return null;
+const getLatencyColor = (latency: number, darkMode: boolean): [string, string] => {
+  if (latency < 20) {
+    return darkMode ? ['#00f5d4', '#00c2a8'] : ['#03c988', '#00a96f'];
+  }
+  if (latency < 60) {
+    return darkMode ? ['#f9ff6c', '#ffd166'] : ['#f4a259', '#f6bd60'];
+  }
+  if (latency < 120) {
+    return darkMode ? ['#ff8c42', '#ff6b35'] : ['#ff8243', '#ff5c2b'];
+  }
+  return darkMode ? ['#ff3f81', '#ff0054'] : ['#ff4d6d', '#d81159'];
 };
 
 const ClusterMap: React.FC<ClusterMapProps> = ({
@@ -387,208 +86,262 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
   selectedNodeId,
   selectionToken,
 }) => {
-  // Filter nodes that have valid location data (including NaN check)
-  const nodesWithLocation = nodes.filter(node => 
-    node.lat != null && 
-    node.lon != null && 
-    !isNaN(node.lat) && 
-    !isNaN(node.lon) &&
-    isFinite(node.lat) &&
-    isFinite(node.lon)
-  );
-  const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
-  const markerRefs = useRef<Record<string, L.Marker>>({});
-  const selectedNode = useMemo(
+  const globeRef = useRef<GlobeMethods>();
+  const autoRotateResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const nodesWithLocation = useMemo(
     () =>
-      nodesWithLocation.find(
-        (node) => selectedNodeId && node.name === selectedNodeId
-      ),
+      nodes
+        .filter(
+          (node) =>
+            node.lat != null &&
+            node.lon != null &&
+            !Number.isNaN(node.lat) &&
+            !Number.isNaN(node.lon)
+        )
+        .map((node) => ({
+          ...node,
+          lat: node.lat as number,
+          lng: node.lon as number,
+        })),
+    [nodes]
+  );
+
+  const htmlMarkers = useMemo(
+    () =>
+      nodesWithLocation.map((node) => ({
+        ...node,
+        isSelected: node.name === selectedNodeId,
+        theme: darkMode ? 'dark' : 'light',
+      })),
+    [nodesWithLocation, selectedNodeId, darkMode]
+  );
+
+  const nodeLookup = useMemo(() => {
+    const map = new Map<string, { lat: number; lng: number }>();
+    nodesWithLocation.forEach((node) => {
+      map.set(node.name, { lat: node.lat, lng: node.lng });
+    });
+    return map;
+  }, [nodesWithLocation]);
+
+  const globeConnections = useMemo(() => {
+    return connections
+      .map((conn) => {
+        const source = nodeLookup.get(conn.source_node);
+        const target = nodeLookup.get(conn.target_node);
+        if (!source || !target) {
+          return null;
+        }
+        const colors = getLatencyColor(conn.latency_ms, darkMode);
+        const altitude = 0.08 + Math.min(conn.latency_ms / 600, 0.3);
+        return {
+          startLat: source.lat,
+          startLng: source.lng,
+          endLat: target.lat,
+          endLng: target.lng,
+          color: colors,
+          altitude,
+          latency: conn.latency_ms,
+          label: `${conn.source_node} → ${conn.target_node}`,
+        } as GlobeConnectionDatum;
+      })
+      .filter((value): value is GlobeConnectionDatum => Boolean(value));
+  }, [connections, nodeLookup, darkMode]);
+
+  const selectedNode = useMemo(
+    () => nodes.find((node) => node.name === selectedNodeId) ?? null,
+    [nodes, selectedNodeId]
+  );
+
+  const focusTarget = useMemo(
+    () => nodesWithLocation.find((node) => node.name === selectedNodeId) ?? null,
     [nodesWithLocation, selectedNodeId]
   );
-  const selectedMarker = selectedNodeId ? markerRefs.current[selectedNodeId] : null;
+  const focusLat = focusTarget?.lat ?? null;
+  const focusLng = focusTarget?.lng ?? null;
 
-  // Default center (world view)
-  const center: [number, number] = [20, 0]; // Center of the world
-  const zoom = 2; // Global view
+  useEffect(() => {
+    if (!globeRef.current) {
+      return;
+    }
+    const controls = globeRef.current.controls();
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.45;
+    controls.enableZoom = true;
+    controls.minDistance = 180;
+    controls.maxDistance = 750;
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+  }, []);
 
-  // Don't render map if we have no valid nodes
+  useEffect(() => {
+    if (
+      !selectedNodeId ||
+      !globeRef.current ||
+      focusLat == null ||
+      focusLng == null
+    ) {
+      return;
+    }
+
+    globeRef.current.pointOfView({ lat: focusLat, lng: focusLng, altitude: 1.3 }, 900);
+    const controls = globeRef.current.controls();
+    controls.autoRotate = false;
+    if (autoRotateResetRef.current) {
+      clearTimeout(autoRotateResetRef.current);
+    }
+    autoRotateResetRef.current = setTimeout(() => {
+      controls.autoRotate = true;
+    }, 6000);
+  }, [selectedNodeId, selectionToken, focusLat, focusLng]);
+
+  useEffect(() => {
+    return () => {
+      if (autoRotateResetRef.current) {
+        clearTimeout(autoRotateResetRef.current);
+      }
+    };
+  }, []);
+
+  const renderMarker = useCallback(
+    (nodeDatum: object) => {
+      const datum = nodeDatum as GlobeNodeDatum;
+      const container = document.createElement('div');
+      container.className = `globe-node ${datum.theme} status-${datum.status} ${
+        datum.isSelected ? 'selected' : ''
+      }`;
+      container.title = datum.name;
+
+      const img = document.createElement('img');
+      img.alt = datum.name;
+      img.src = getCharacterImage(datum.name);
+      img.onerror = () => {
+        img.src = getFallbackAvatar(datum.name);
+      };
+      container.appendChild(img);
+
+      return container;
+    },
+    []
+  );
+
   if (nodesWithLocation.length === 0) {
     return (
-      <div className="cluster-map">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-          <p>No nodes with location data available</p>
-        </div>
+      <div className="cluster-map empty">
+        <p>No nodes with location data available</p>
       </div>
     );
   }
 
   return (
-    <div className="cluster-map">
-      <MapContainer
-        center={center}
-        zoom={zoom}
-        scrollWheelZoom={true}
-        style={{ height: '100%', width: '100%' }}
-        minZoom={2}
-        maxZoom={18}
-        worldCopyJump={false}
-      >
-        {/* Limit view to a single world copy and fit bounds to nodes */}
-        <SingleWorldView />
-        <FitBounds nodes={nodesWithLocation} />
-        {selectedNode && (
-          <SelectedNodeFocus
-            node={selectedNode}
-            marker={selectedMarker}
-            clusterGroup={clusterGroupRef.current}
-            token={selectionToken}
-          />
-        )}
-        
-        {/* Highlight countries with nodes */}
-        <CountryHighlights nodes={nodesWithLocation} darkMode={darkMode} />
-        
-        {/* Draw connection lines between nodes */}
-        <ConnectionLines connections={connections} darkMode={darkMode} />
-        
-        {/* Conditionally render dark or light map tiles */}
-        {darkMode ? (
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-            subdomains='abcd'
-            maxZoom={20}
-            noWrap={true}
-            bounds={WORLD_BOUNDS}
-          />
-        ) : (
-          <TileLayer
-            attribution='&copy; <a href="https://carto.com/attributions">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-            subdomains='abcd'
-            maxZoom={20}
-            noWrap={true}
-            bounds={WORLD_BOUNDS}
-          />
-        )}
-        
-        <MarkerClusterGroup
-          ref={clusterGroupRef}
-          chunkedLoading
-          maxClusterRadius={50}
-          spiderfyOnMaxZoom={true}
-          showCoverageOnHover={false}
-        >
-          {nodesWithLocation.map((node) => {
-            const isSelected = selectedNodeId === node.name;
-            return (
-            <Marker
-              key={node.name}
-              position={[node.lat!, node.lon!]}
-              icon={getMarkerIcon(node.name, node.status, isSelected)}
-              ref={(markerInstance) => {
-                if (markerInstance) {
-                  markerRefs.current[node.name] = markerInstance;
-                } else {
-                  delete markerRefs.current[node.name];
-                }
-              }}
-              zIndexOffset={isSelected ? 1000 : 0}
-            >
-              <Tooltip direction="top" offset={[0, -45]} opacity={0.9}>
-                <strong>{node.name}</strong>
-              </Tooltip>
-              
-              <Popup>
-              <div className={`node-popup ${darkMode ? 'dark' : 'light'}`}>
-                <h3>{node.name}</h3>
-                <div className="node-popup-content">
-                  <div className="popup-row">
-                    <span className="label">Status:</span>
-                    <span className={`status-badge status-${node.status}`}>
-                      {node.status}
-                    </span>
-                  </div>
-                  
-                  {node.location && (
-                    <div className="popup-row">
-                      <span className="label">Location:</span>
-                      <span>{node.location}</span>
-                    </div>
-                  )}
-                  
-                  {node.provider && (
-                    <div className="popup-row">
-                      <span className="label">Provider:</span>
-                      <span className="provider-badge">{node.provider}</span>
-                    </div>
-                  )}
-                  
-                  {node.internal_ip && (
-                    <div className="popup-row">
-                      <span className="label">Internal IP:</span>
-                      <span><code>{node.internal_ip}</code></span>
-                    </div>
-                  )}
-                  
-                  {node.external_ip && (
-                    <div className="popup-row">
-                      <span className="label">External IP:</span>
-                      <span><code>{node.external_ip}</code></span>
-                    </div>
-                  )}
-                  
-                  {node.cpu_percent !== undefined && (
-                    <div className="popup-row">
-                      <span className="label">CPU:</span>
-                      <span>{node.cpu_percent.toFixed(1)}%</span>
-                    </div>
-                  )}
-                  
-                  {node.memory_percent !== undefined && (
-                    <div className="popup-row">
-                      <span className="label">Memory:</span>
-                      <span>{node.memory_percent.toFixed(1)}%</span>
-                    </div>
-                  )}
-                  
-                  {node.disk_percent !== undefined && (
-                    <div className="popup-row">
-                      <span className="label">Disk:</span>
-                      <span>{node.disk_percent.toFixed(1)}%</span>
-                    </div>
-                  )}
+    <div className={`cluster-map ${darkMode ? 'dark' : 'light'}`}>
+      <div className="globe-wrapper">
+        <Globe
+          ref={globeRef}
+          width={undefined}
+          height={undefined}
+          backgroundColor={darkMode ? '#04030b' : '#eef2ff'}
+          backgroundImageUrl={darkMode ? STARS : null}
+          globeImageUrl={darkMode ? DARK_GLOBE : LIGHT_GLOBE}
+          bumpImageUrl={BUMP_MAP}
+          showAtmosphere
+          atmosphereColor={darkMode ? '#7c8cff' : '#8bbdfc'}
+          atmosphereAltitude={0.22}
+          htmlElementsData={htmlMarkers}
+          htmlElement={renderMarker}
+          arcsData={globeConnections}
+          arcColor={(arc: object) => (arc as GlobeConnectionDatum).color}
+          arcStroke={1.2}
+          arcAltitude={(arc: object) => (arc as GlobeConnectionDatum).altitude}
+          arcDashLength={0.35}
+          arcDashGap={0.9}
+          arcDashAnimateTime={1800}
+          arcsTransitionDuration={0}
+          arcLabel={(arc: object) => {
+            const datum = arc as GlobeConnectionDatum;
+            return `${datum.label} · ${datum.latency.toFixed(1)} ms`;
+          }}
+        />
 
-                  {(node.network_tx_bytes_per_sec !== undefined ||
-                    node.network_rx_bytes_per_sec !== undefined) && (
-                    <div className="popup-row throughput-row">
-                      <span className="label">Network:</span>
-                      <span className="throughput-values">
-                        ⬆ {formatBytesPerSecond(node.network_tx_bytes_per_sec)} · ⬇{' '}
-                        {formatBytesPerSecond(node.network_rx_bytes_per_sec)}
-                      </span>
-                    </div>
-                  )}
-                  
-                  <div className="popup-row">
-                    <span className="label">Last Seen:</span>
-                    <span>{node.last_seen}</span>
-                  </div>
-                  
-                  {node.kubelet_version && (
-                    <div className="popup-row">
-                      <span className="label">Version:</span>
-                      <span><code>{node.kubelet_version}</code></span>
-                    </div>
-                  )}
+        {selectedNode && (
+          <div className={`node-info-card ${darkMode ? 'dark' : 'light'}`}>
+            <div className="node-info-card__header">
+              <div>
+                <h3>{selectedNode.name}</h3>
+                {selectedNode.location && <p>{selectedNode.location}</p>}
+              </div>
+              <span className={`status-pill status-${selectedNode.status}`}>
+                {selectedNode.status}
+              </span>
+            </div>
+
+            <div className="node-info-card__body">
+              {selectedNode.provider && (
+                <div className="info-row">
+                  <span>Provider</span>
+                  <strong>{selectedNode.provider}</strong>
+                </div>
+              )}
+              {selectedNode.external_ip && (
+                <div className="info-row">
+                  <span>External IP</span>
+                  <code>{selectedNode.external_ip}</code>
+                </div>
+              )}
+              {selectedNode.internal_ip && (
+                <div className="info-row">
+                  <span>Internal IP</span>
+                  <code>{selectedNode.internal_ip}</code>
+                </div>
+              )}
+              <div className="metrics-grid">
+                <div>
+                  <span>CPU</span>
+                  <strong>
+                    {selectedNode.cpu_percent != null ? `${selectedNode.cpu_percent.toFixed(1)}%` : '—'}
+                  </strong>
+                </div>
+                <div>
+                  <span>Memory</span>
+                  <strong>
+                    {selectedNode.memory_percent != null ? `${selectedNode.memory_percent.toFixed(1)}%` : '—'}
+                  </strong>
+                </div>
+                <div>
+                  <span>Disk</span>
+                  <strong>
+                    {selectedNode.disk_percent != null ? `${selectedNode.disk_percent.toFixed(1)}%` : '—'}
+                  </strong>
                 </div>
               </div>
-              </Popup>
-            </Marker>
-          );
-          })}
-        </MarkerClusterGroup>
-      </MapContainer>
+
+              {(selectedNode.network_tx_bytes_per_sec != null ||
+                selectedNode.network_rx_bytes_per_sec != null) && (
+                <div className="info-row">
+                  <span>Network</span>
+                  <strong>
+                    ⬆ {formatBytesPerSecond(selectedNode.network_tx_bytes_per_sec)} · ⬇{' '}
+                    {formatBytesPerSecond(selectedNode.network_rx_bytes_per_sec)}
+                  </strong>
+                </div>
+              )}
+
+              <div className="info-row">
+                <span>Last seen</span>
+                <strong>{selectedNode.last_seen}</strong>
+              </div>
+
+              {selectedNode.kubelet_version && (
+                <div className="info-row">
+                  <span>Kubelet</span>
+                  <code>{selectedNode.kubelet_version}</code>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
