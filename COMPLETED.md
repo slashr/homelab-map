@@ -42,6 +42,11 @@
    - **Solution:** Swapped the Leaflet stack for `react-globe.gl`, rendered nodes as HTML avatars hovering above the sphere, drew latency arcs for every connection, added a floating info card, and wired sidebar selections into the globe point-of-view animation.
    - **Acceptance Criteria:** Nodes and connections render on a 3D globe in both themes, selecting a node or toggling the sidebar focuses the correct spot, and the card surfaces the same metrics previously shown in the map popup.
 
+7. Fix sidebar width and clear npm audit issues
+   - **Problem:** The stats sidebar collapsed to a sliver after the globe refactor, and `npm audit` flagged nine vulnerabilities (svgo/postcss/webpack-dev-server, etc.) from CRA’s dependency tree.
+   - **Solution:** Locked the sidebar’s flex-basis/min-width via the existing clamp variable so it can’t shrink, pinned patched versions of the vulnerable packages with `package.json` overrides, and used `patch-package` to update CRA’s dev-server config to the modern `server`/`setupMiddlewares` API to stay compatible with the new dependencies.
+   - **Acceptance Criteria:** Sidebar width remains stable across breakpoints, `npm audit` reports zero issues, and `npm run build/start` continue working.
+
 ## High Effort
 1. Accelerate CI builds with caching and smarter service selection
    - **Problem:** Every PR rebuilt all service images, wasting Release time.
