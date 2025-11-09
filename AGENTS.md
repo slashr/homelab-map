@@ -23,10 +23,10 @@ When AXP is mentioned in the task, either by the user or in TASKS.md, you should
      --title "TASK-###: <short title> [AXP]" \
      --label axp
    ```
-5. **Watch checks (poll ~60s):**
+5. **Watch checks (poll ~30s):**
 
    ```bash
-   gh pr checks --watch
+   gh pr checks --watch --interval 30
    ```
 
    * If a check fails, **fix → push → watch again**.
@@ -48,9 +48,10 @@ When AXP is mentioned in the task, either by the user or in TASKS.md, you should
    gh pr merge --merge --delete-branch
    ```
 8. **Post‑merge release:**
-   After merging the PR, watch the Actions pipeline until it passes
+   After merging the PR, watch the Release workflow until it passes. Capture the latest run ID and follow it with a relaxed interval to avoid busy-waiting:
    ```bash
-   gh run watch --workflow "Release"
+   gh run list --workflow "Release" --limit 1 --json databaseId,status
+   gh run watch <run-id> --interval 30 --exit-status
    ```
 
    * If it **fails**, open a minimal **Recovery PR** and repeat the loop. Try up to **3** times. If still failing, **escalate** (see Stop Conditions).
