@@ -79,9 +79,11 @@ jobs:
 
       - name: Export release metadata
         run: |
-          echo "LABELS_JSON=${{ steps.pr_metadata.outputs.labels || '[]' }}" >> "$GITHUB_ENV"
-          echo "HAS_PR=${{ steps.pr_metadata.outputs.has_pr || 'false' }}" >> "$GITHUB_ENV"
-          echo "MERGE_SHA=${{ steps.pr_metadata.outputs.merge_sha || github.sha }}" >> "$GITHUB_ENV"
+          {
+            echo "LABELS_JSON=${{ steps.pr_metadata.outputs.labels || '[]' }}"
+            echo "HAS_PR=${{ steps.pr_metadata.outputs.has_pr || 'false' }}"
+            echo "MERGE_SHA=${{ steps.pr_metadata.outputs.merge_sha || github.sha }}"
+          } >> "$GITHUB_ENV"
 
       - name: Decide release gate
         id: release_gate
@@ -372,4 +374,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
           git commit -m "chore: update homelab-map images to $VERSION"
-          git push "https://x-access-token:${{ secrets.HOMELAB_DEPLOYMENTS_TOKEN }}@github.com/slashr/homelab-deployments.git" HEAD:${HOMELAB_DEPLOYMENTS_BRANCH}
+          git push "https://x-access-token:${{ secrets.HOMELAB_DEPLOYMENTS_TOKEN }}@github.com/slashr/homelab-deployments.git" "HEAD:${HOMELAB_DEPLOYMENTS_BRANCH}"
