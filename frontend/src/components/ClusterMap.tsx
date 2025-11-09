@@ -154,6 +154,13 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
     [nodes, selectedNodeId]
   );
 
+  const focusTarget = useMemo(
+    () => nodesWithLocation.find((node) => node.name === selectedNodeId) ?? null,
+    [nodesWithLocation, selectedNodeId]
+  );
+  const focusLat = focusTarget?.lat ?? null;
+  const focusLng = focusTarget?.lng ?? null;
+
   useEffect(() => {
     if (!globeRef.current) {
       return;
@@ -169,15 +176,16 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
   }, []);
 
   useEffect(() => {
-    if (!selectedNodeId || !globeRef.current) {
-      return;
-    }
-    const target = nodesWithLocation.find((node) => node.name === selectedNodeId);
-    if (!target) {
+    if (
+      !selectedNodeId ||
+      !globeRef.current ||
+      focusLat == null ||
+      focusLng == null
+    ) {
       return;
     }
 
-    globeRef.current.pointOfView({ lat: target.lat, lng: target.lng, altitude: 1.3 }, 900);
+    globeRef.current.pointOfView({ lat: focusLat, lng: focusLng, altitude: 1.3 }, 900);
     const controls = globeRef.current.controls();
     controls.autoRotate = false;
     if (autoRotateResetRef.current) {
@@ -186,7 +194,7 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
     autoRotateResetRef.current = setTimeout(() => {
       controls.autoRotate = true;
     }, 6000);
-  }, [selectedNodeId, selectionToken, nodesWithLocation]);
+  }, [selectedNodeId, selectionToken, focusLat, focusLng]);
 
   useEffect(() => {
     return () => {
