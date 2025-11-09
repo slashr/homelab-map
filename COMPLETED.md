@@ -47,6 +47,11 @@
    - **Solution:** Locked the sidebar’s flex-basis/min-width via the existing clamp variable so it can’t shrink, pinned patched versions of the vulnerable packages with `package.json` overrides, and used `patch-package` to update CRA’s dev-server config to the modern `server`/`setupMiddlewares` API to stay compatible with the new dependencies.
    - **Acceptance Criteria:** Sidebar width remains stable across breakpoints, `npm audit` reports zero issues, and `npm run build/start` continue working.
 
+8. Polish the 3D globe interactions
+   - **Problem:** The globe auto-rotated nonstop, pinch markers weren’t clickable, the sphere appeared off-center, and there was little geographic context (no borders/capitals).
+   - **Solution:** Disabled auto-rotation, wired each HTML marker to the shared selection handler, recentered the canvas via layout tweaks, and layered country polygons plus curated capital labels using `world-atlas`/`topojson-client`.
+   - **Acceptance Criteria:** Globe stays still until the user drags it, clicking a marker opens the info card, the sphere is centered in its panel, and borders/capital labels render without overwhelming the UI.
+
 ## High Effort
 1. Accelerate CI builds with caching and smarter service selection
    - **Problem:** Every PR rebuilt all service images, wasting Release time.

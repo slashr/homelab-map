@@ -108,6 +108,7 @@ function App() {
           darkMode={darkMode}
           selectedNodeId={selection?.id || null}
           selectionToken={selection?.token || 0}
+          onNodeSelect={handleNodeSelect}
         />
       </div>
     </div>

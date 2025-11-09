@@ -3,6 +3,9 @@
   height: 100%;
   position: relative;
   border-left: 1px solid rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .cluster-map.dark {
@@ -19,11 +22,17 @@
   position: relative;
   width: 100%;
   height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
 }
 
 .cluster-map canvas {
-  width: 100% !important;
-  height: 100% !important;
+  width: min(900px, 100%) !important;
+  height: min(900px, 100%) !important;
+  margin: 0 auto;
+  display: block;
 }
 
 .cluster-map.empty {
@@ -49,6 +58,7 @@
   align-items: center;
   justify-content: center;
   transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
 }
 
 .globe-node.dark {
@@ -69,6 +79,11 @@
   transform: scale(1.12);
   border-width: 4px;
   box-shadow: 0 0 20px rgba(255, 213, 79, 0.9);
+}
+
+.globe-node:focus-visible {
+  outline: 2px solid #ffd54f;
+  outline-offset: 4px;
 }
 
 .globe-node.status-online {

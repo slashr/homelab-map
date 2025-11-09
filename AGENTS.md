@@ -40,7 +40,7 @@ When AXP is mentioned in the task, either by the user or in TASKS.md, you should
 
    Otherwise, codex reviewer leaves a review comment as a reply to one of it's main comments. 
 
-   You should address this review and leave a reply to that comment inline (not as a independent comment) mentioning whether you accept the review and fixed it or whether you think the review doesn't need to be fixed and skipped it. 
+   You should address this review and leave a reply to that comment inline (not as a independent comment) mentioning whether you accept the review and fixed it or whether you think the review doesn't need to be fixed and skipped it. Reply directly on each individual review thread—never consolidate answers on a single thread—so the resolution for every comment is tracked exactly where it originated. 
 
    If you pushed a fix for the review, then add "@codex review again" at the end of the reply to make codex reviewer review the fresh commits again. 
    
@@ -135,7 +135,7 @@ These steps apply only when a task explicitly calls out the “FAW” (Fully Aut
 9. If a post-merge run fails, immediately investigate the error and open a new PR that fixes it. You may trigger this recovery flow up to three times (three consecutive merged PRs followed by failing automation runs). After the third failure, stop retrying and escalate instead of opening more PRs under FAW.
 10. Once the post-merge automation succeeds, pick the next pending item from `TASKS.md` (if present) and start work on it while keeping the FAW rules in mind.
 11. Before asking for the thumbs-up or merging, explicitly read Codex’s latest review/comments to make sure any suggestions are captured–don’t rely solely on reactions.
-12. After implementing any Codex feedback, reply inline via the original review thread (use the Reply action) so the action taken stays attached to the comment rather than creating a separate message.
+12. After implementing any Codex feedback, reply inline via the original review thread (use the Reply action) so the action taken stays attached to the comment rather than creating a separate message—respond to every review comment in its own thread instead of collecting answers in one place.
 13. When replying in-thread, append “@codex review again” so Codex re-checks the up-to-date commits before giving the 👍.
 
 ## Python services (`agent/`, `aggregator/`)

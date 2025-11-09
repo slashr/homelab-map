@@ -1,20 +1,24 @@
-# ExecPlan: Globe Connection Continuity Fix
+# ExecPlan: Globe Interaction & Detail Polish
 
 ## Goal
-Ensure the globe’s arcs render continuously between nodes (currently they appear broken/dashed beyond the intended animation), while keeping the new 3D map setup intact.
+Improve the 3D globe UX by stopping the constant auto-rotation, allowing marker clicks to open the info card, centering the globe visually, and layering in geographic context (borders + capital labels).
 
 ## Steps
-1. **Reproduce / inspect settings**
-   - Review the `arc*` props in `ClusterMap.tsx` to confirm which options (dash length/gap, altitude scaling) are making arcs look segmented.
-   - Check whether connections with missing coordinates are filtered correctly.
+1. **Marker interaction & selection**
+   - Extend `ClusterMap` to accept an `onNodeSelect` callback from `App` and attach click/keyboard handlers to each HTML marker so map clicks mirror sidebar selections.
+   - Remove the auto-rotate logic so the globe stays still unless the user drags it.
 
-2. **Adjust arc rendering**
-   - Update the arc configuration to draw solid lines (either disable dashes or tweak lengths) and clamp altitudes so they don’t collapse near the globe surface.
-   - Consider introducing `arcDashGap` tweaks or zeroing out the dash settings entirely when the animation isn’t needed.
+2. **Layout centering**
+   - Adjust `.cluster-map` / `.globe-wrapper` styles (and canvas display rules) so the globe canvas is centered regardless of the floating info card, and ensure markers show a pointer cursor.
 
-3. **Validation**
-   - Run `npm run build` to ensure TypeScript/CRA compile with the new settings.
-   - Manually reason about the arcs (no UI access) and note the improvement in the PR description.
+3. **Geographic detail**
+   - Import `world-atlas` + `topojson-client` to render subtle country polygons and add a curated `capitals.ts` dataset rendered via `labelsData` for quick visual reference.
+
+4. **Validation**
+   - `npm install` (for new topojson/world-atlas deps) and `npm run build` to confirm CRA compiles.
+   - Verify `npm audit` stays clean.
 
 ## Validation
+- `cd frontend && npm install`
 - `cd frontend && npm run build`
+- `cd frontend && npm audit`
