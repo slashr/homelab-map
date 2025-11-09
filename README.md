@@ -121,12 +121,12 @@ npm start
 ## Automated Releases
 
 - Every merge into `main` triggers the `Release` workflow (direct pushes are ignored because the workflow requires an associated pull request). Label the PR with `feat`, `fix`, or `major release` (aliases: `feature`, `enhancement`, `bug`, `breaking`, etc.) to control the SemVer bump. Without a label the workflow defaults to a patch bump.
-- The workflow tags the merge commit (e.g., `v1.2.3`), invokes the reusable `Build and Publish Container Images` pipeline to build/push all service images with that tag, and still publishes a commit-hash fallback tag.
+- The workflow tags the merge commit (e.g., `v1.2.3`), uses lightweight path filters to figure out which service directories changed, and invokes the reusable `Build and Publish Container Images` pipeline with only those services (manual dispatches can still force a full rebuild). Container builds use the GitHub Actions cache with BuildKit’s `cache-from/cache-to` flags so identical layers transfer in seconds instead of minutes.
 - Configure the following repository settings so the automation can run:
   - Secrets: `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`, and `HOMELAB_DEPLOYMENTS_TOKEN` (PAT with `public_repo` access) for pushing Docker images and updating the deployments repo.
   - Variables: `REGISTRY` (e.g., `docker.io/dawker`), `HOMELAB_DEPLOYMENTS_REPO` (defaults to `slashr/homelab-deployments`, override if your manifests live elsewhere), optional `HOMELAB_DEPLOYMENTS_BRANCH` (default `main`), and optional `HOMELAB_DEPLOYMENTS_SERVICES` (comma-separated list, default `agent,aggregator,frontend`).
-- To skip a release (e.g., CI-only or docs-only changes), add the `skip release` label before merging. The workflow also respects additional aliases via the optional `SKIP_RELEASE_LABELS` variable.
-- After the images push, the workflow clones the configured `homelab-deployments` repo, uses `scripts/update_homelab_deployments.py` to bump every `homelab-map-*` image reference to the new tag, and opens an automated PR so the deployment picks up the fresh images.
+- Documentation-only or infra-only merges automatically skip releases because no services are flagged as changed. To skip a release for other reasons (e.g., CI-only), add the `skip release` label before merging. The workflow also respects aliases via the optional `SKIP_RELEASE_LABELS` variable.
+- After the images push, the workflow clones the configured `homelab-deployments` repo, uses `scripts/update_homelab_deployments.py` to bump the image references for the same filtered service subset, and opens an automated PR so only those deployments roll forward.
 - You can also run the `Release` workflow manually from the Actions tab, choosing the bump size from the dropdown if you need an out-of-band release.
 
 ## Features
