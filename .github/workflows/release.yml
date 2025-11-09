@@ -32,7 +32,9 @@ jobs:
       pull-requests: read
     outputs:
       version: ${{ steps.bump_version.outputs.version }}
-      release_enabled: ${{ steps.release_gate.outputs.enabled }}
+      release_enabled: ${{ steps.service_gate.outputs.enabled }}
+      services: ${{ steps.detect_services.outputs.services }}
+      services_csv: ${{ steps.detect_services.outputs.services_csv }}
     steps:
       - name: Check out merged commit
         uses: actions/checkout@v4
@@ -120,6 +122,61 @@ jobs:
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
               env_file.write(f"RELEASE_ENABLED={enabled}\n")
           PY
+
+      - name: Detect changed services
+        id: detect_services
+        env:
+          BASE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          FORCE=""
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            FORCE="--force-all"
+          fi
+          services_json="$(python3 scripts/detect_changed_services.py --base "${BASE_SHA}" --head "${HEAD_SHA}" ${FORCE})"
+          services_json="${services_json//$'\n'/}"
+          export SERVICES_JSON="${services_json}"
+          services_csv="$(python3 - <<'PY'
+import json
+import os
+data = json.loads(os.environ.get("SERVICES_JSON") or "[]")
+print(",".join(data))
+PY
+          )"
+          services_csv="${services_csv//$'\n'/}"
+          {
+            echo "services=${services_json}"
+            echo "services_csv=${services_csv}"
+          } >> "$GITHUB_OUTPUT"
+          if [[ -z "${services_json}" ]]; then
+            echo "Detected services output empty; defaulting to []."
+          fi
+          if [[ "${services_json:-[]}" == "[]" ]]; then
+            echo "No service directories changed."
+          else
+            echo "Services to build: ${services_json}"
+          fi
+
+      - name: Apply service change gate
+        id: service_gate
+        env:
+          RELEASE_ENABLED: ${{ env.RELEASE_ENABLED }}
+          SERVICES_JSON: ${{ steps.detect_services.outputs.services || '[]' }}
+        run: |
+          set -euo pipefail
+          enabled="${RELEASE_ENABLED:-false}"
+          services="${SERVICES_JSON:-[]}"
+          if [[ -z "${services}" ]]; then
+            services="[]"
+          fi
+          if [[ "${services}" == "[]" ]]; then
+            enabled="false"
+            echo "Release disabled: no service directories changed."
+          fi
+          echo "enabled=${enabled}" >> "$GITHUB_OUTPUT"
+          echo "RELEASE_ENABLED=${enabled}" >> "$GITHUB_ENV"
 
       - name: Determine version bump
         id: bump_level
@@ -219,6 +276,7 @@ jobs:
     uses: ./.github/workflows/build-and-publish.yml
     with:
       version: ${{ needs.prepare-release.outputs.version }}
+      services: ${{ needs.prepare-release.outputs.services }}
     secrets: inherit
 
   update-homelab-deployments:
@@ -249,17 +307,28 @@ jobs:
           path: homelab-deployments
 
       - name: Update image tags
+        env:
+          CHANGED_SERVICES_JSON: ${{ needs.prepare-release.outputs.services }}
         run: |
           set -euo pipefail
-          IFS=',' read -ra service_list <<< "${HOMELAB_DEPLOYMENTS_SERVICES}"
-          for i in "${!service_list[@]}"; do
-            service_list[$i]="$(echo "${service_list[$i]}" | xargs)"
-            if [[ -z "${service_list[$i]}" ]]; then
-              unset 'service_list[i]'
-            fi
-          done
+          mapfile -t service_list < <(python3 - <<'PY'
+import json
+import os
+
+detected = json.loads(os.environ.get("CHANGED_SERVICES_JSON") or "[]")
+allowed_raw = os.environ.get("HOMELAB_DEPLOYMENTS_SERVICES", "")
+allowed = [item.strip() for item in allowed_raw.split(",") if item.strip()]
+if not allowed:
+    final = detected
+else:
+    final = [svc for svc in detected if svc in allowed]
+for svc in final:
+    print(svc)
+PY
+          )
           if [[ ${#service_list[@]} -eq 0 ]]; then
-            service_list=(agent aggregator frontend)
+            echo "No deployments require image updates."
+            exit 0
           fi
           python3 scripts/update_homelab_deployments.py \
             --repo-path homelab-deployments \

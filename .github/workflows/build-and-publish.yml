@@ -7,6 +7,11 @@ on:
         description: "SemVer tag to apply to all images"
         required: true
         type: string
+      services:
+        description: "JSON array of service names to build (default builds all)"
+        required: false
+        type: string
+        default: '["agent","aggregator","frontend"]'
     secrets:
       REGISTRY_USERNAME:
         required: true
@@ -19,6 +24,11 @@ on:
         required: true
         type: string
         default: latest
+      services:
+        description: "JSON array of service names to build (default builds all)"
+        required: false
+        type: string
+        default: '["agent","aggregator","frontend"]'
 
 env:
   REGISTRY: ${{ vars.REGISTRY != '' && vars.REGISTRY || 'docker.io/dawker' }}
@@ -29,18 +39,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VERSION: ${{ inputs.version }}
+      SERVICES_JSON: ${{ inputs.services != '' && inputs.services || '["agent","aggregator","frontend"]' }}
     strategy:
       matrix:
-        include:
-          - name: agent
-            context: ./agent
-            image: homelab-map-agent
-          - name: aggregator
-            context: ./aggregator
-            image: homelab-map-aggregator
-          - name: frontend
-            context: ./frontend
-            image: homelab-map-frontend
+        service: ${{ fromJSON(inputs.services != '' && inputs.services || '["agent","aggregator","frontend"]') }}
     permissions:
       contents: read
       packages: write
@@ -74,13 +76,15 @@ jobs:
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
-      - name: Build and push ${{ matrix.name }} image
+      - name: Build and push ${{ matrix.service }} image
         uses: docker/build-push-action@v5
         with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.context }}/Dockerfile
+          context: ./${{ matrix.service }}
+          file: ./${{ matrix.service }}/Dockerfile
           platforms: ${{ env.PLATFORMS }}
           push: true
+          cache-from: type=gha,scope=homelab-map-${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=homelab-map-${{ matrix.service }}
           tags: |
-            ${{ env.REGISTRY }}/${{ matrix.image }}:${{ env.VERSION }}
-            ${{ env.REGISTRY }}/${{ matrix.image }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/homelab-map-${{ matrix.service }}:${{ env.VERSION }}
+            ${{ env.REGISTRY }}/homelab-map-${{ matrix.service }}:${{ github.sha }}
