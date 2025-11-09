@@ -1,21 +1,20 @@
-# ExecPlan: Sidebar Zoom & Layout Polish
+# ExecPlan: Sidebar Info Panel Fix (TASK-003)
 
 ## Goal
-Finish TASKS #2 and #3 (former “tasks 8/9”): ensure clicking a node in the sidebar zooms the map tightly enough to reveal the individual marker, and remove the empty gap that appears when the map is fully zoomed out by widening/adjusting the sidebar layout.
+Ensure the node info popup opened from the sidebar selection no longer closes a second later for Michael/Jim (or any co-located nodes) by hardening the `SelectedNodeFocus` logic in `ClusterMap`.
 
 ## Steps
-1. **Zoom-to-node behavior**
-   - Investigate how Leaflet clustering currently reacts to `map.flyTo` and whether we need to trigger marker expansion when the sidebar selection changes.
-   - Adjust the selection handler to zoom to a configurable level (e.g., 8–10) and/or leverage `MarkerClusterGroup`’s `spiderfy`/`zoomToShowLayer` helpers so the selected marker is always visible.
+1. **Root-cause review**
+   - Study `ClusterMap.tsx` to see how `MarkerClusterGroup.zoomToShowLayer`, `map.flyTo`, and popup timing interact.
+   - Confirm where popups might close automatically (e.g., during cluster animations) and capture the selection timestamp for heuristics.
 
-2. **Sidebar width / layout gap**
-   - Review `App.css`/layout styles to understand how the map area leaves a margin when fully zoomed out.
-   - Increase the sidebar width (or tweak flex spacing) until the map spans the remaining width without exposing background gaps at world view; verify responsiveness on smaller screens.
+2. **Popup stabilization**
+   - Refactor `SelectedNodeFocus` so popups open only after the fly-to animation completes, with fallbacks if no move occurs.
+   - Add a listener that reopens the popup once if it closes within ~2–3 seconds of selection (to cover cluster-induced closes) without preventing manual dismissals later.
 
-3. **Validation + UX polish**
-   - Run `npm run build` in `frontend/` to ensure TypeScript/ESLint stay clean.
-   - Manual sanity via `npm start` (time permitting) to confirm clicks zoom appropriately and the gap is gone in light/dark modes.
+3. **Validation**
+   - Run `npm run build` inside `frontend/` to ensure the TypeScript bundle succeeds.
+   - Spot-check TypeScript types and lint warnings during build logs.
 
 ## Validation
 - `cd frontend && npm run build`
-- Optional manual UI smoke test (document observations in PR).

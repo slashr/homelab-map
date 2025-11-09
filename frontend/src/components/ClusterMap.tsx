@@ -129,45 +129,131 @@ const SelectedNodeFocus: React.FC<{
   token: number;
 }> = ({ node, marker, clusterGroup, token }) => {
   const map = useMap();
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const focusDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reopenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selectionTimeRef = useRef(0);
+  const selectedNodeLat = node?.lat ?? null;
+  const selectedNodeLon = node?.lon ?? null;
+  const selectedNodeName = node?.name ?? null;
 
   useEffect(() => {
-    if (!node) {
+    if (!selectedNodeName && !marker) {
       return;
     }
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
+
+    selectionTimeRef.current = Date.now();
+
+    if (focusDelayRef.current) {
+      clearTimeout(focusDelayRef.current);
+      focusDelayRef.current = null;
     }
-    timeoutRef.current = setTimeout(() => {
-      const lat = marker?.getLatLng().lat ?? node.lat;
-      const lon = marker?.getLatLng().lng ?? node.lon;
-      if (lat == null || lon == null || isNaN(lat) || isNaN(lon)) {
-        return;
-      }
-      const latLng = L.latLng(lat, lon);
-      const flyToTarget = () => {
-        const zoomTarget = Math.max(map.getZoom(), SIDEBAR_FOCUS_ZOOM);
-        map.flyTo(latLng, zoomTarget, {
-          animate: true,
-          duration: 0.7,
-        });
-        marker?.openPopup();
-      };
 
-      if (marker && clusterGroup) {
-        clusterGroup.zoomToShowLayer(marker, flyToTarget);
-      } else {
-        flyToTarget();
-      }
-    }, 200);
+    let moveEndHandler: (() => void) | null = null;
+    let flyFallbackTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+    const cleanupMovementListeners = () => {
+      if (moveEndHandler) {
+        map.off('moveend', moveEndHandler);
+        moveEndHandler = null;
+      }
+      if (flyFallbackTimeout) {
+        clearTimeout(flyFallbackTimeout);
+        flyFallbackTimeout = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, node?.lat, node?.lon, node?.name, token, marker, clusterGroup]);
+
+    const ensurePopupOpen = () => {
+      if (marker) {
+        marker.openPopup();
+      }
+    };
+
+    const focusOnNode = () => {
+      const lat = marker?.getLatLng().lat ?? selectedNodeLat;
+      const lon = marker?.getLatLng().lng ?? selectedNodeLon;
+      if (lat == null || lon == null || Number.isNaN(lat) || Number.isNaN(lon)) {
+        return;
+      }
+
+      const latLng = L.latLng(lat, lon);
+      const zoomTarget = Math.max(map.getZoom(), SIDEBAR_FOCUS_ZOOM);
+      const needsMove =
+        map.getZoom() < zoomTarget ||
+        map.getCenter().distanceTo(latLng) > 0.0001;
+
+      if (!needsMove) {
+        ensurePopupOpen();
+        return;
+      }
+
+      moveEndHandler = () => {
+        cleanupMovementListeners();
+        ensurePopupOpen();
+      };
+
+      map.once('moveend', moveEndHandler);
+      map.flyTo(latLng, zoomTarget, {
+        animate: true,
+        duration: 0.7,
+      });
+
+      flyFallbackTimeout = setTimeout(() => {
+        cleanupMovementListeners();
+        ensurePopupOpen();
+      }, 1200);
+    };
+
+    const runFocus = () => {
+      if (marker && clusterGroup) {
+        clusterGroup.zoomToShowLayer(marker, focusOnNode);
+      } else {
+        focusOnNode();
+      }
+    };
+
+    focusDelayRef.current = setTimeout(runFocus, 150);
+
+    return () => {
+      if (focusDelayRef.current) {
+        clearTimeout(focusDelayRef.current);
+        focusDelayRef.current = null;
+      }
+      cleanupMovementListeners();
+    };
+  }, [map, selectedNodeLat, selectedNodeLon, selectedNodeName, token, marker, clusterGroup]);
+
+  useEffect(() => {
+    if (!marker) {
+      return;
+    }
+
+    const handlePopupClose = () => {
+      const elapsed = Date.now() - selectionTimeRef.current;
+      if (elapsed > 2500) {
+        return;
+      }
+
+      if (reopenTimeoutRef.current) {
+        clearTimeout(reopenTimeoutRef.current);
+      }
+
+      reopenTimeoutRef.current = setTimeout(() => {
+        if (marker && !marker.isPopupOpen()) {
+          marker.openPopup();
+        }
+      }, 200);
+    };
+
+    marker.on('popupclose', handlePopupClose);
+
+    return () => {
+      marker.off('popupclose', handlePopupClose);
+      if (reopenTimeoutRef.current) {
+        clearTimeout(reopenTimeoutRef.current);
+        reopenTimeoutRef.current = null;
+      }
+    };
+  }, [marker]);
 
   return null;
 };

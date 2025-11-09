@@ -32,6 +32,11 @@
    - **Solution:** Increase the sidebar’s default width (with responsive clamps) so the map edge aligns with it at all zoom levels.
    - **Acceptance Criteria:** No gap appears when fully zoomed out; layout stays responsive.
 
+5. Keep sidebar-triggered node popups open
+   - **Problem:** Selecting Michael or Jim from the sidebar briefly opened their map info panels before clustering/fly-to animations closed them again, so users couldn’t read the details.
+   - **Solution:** Refined `SelectedNodeFocus` to wait for fly-to completion before opening the popup, added a short window that reopens popups closed by clustering, and limited the hook dependencies to stable node identifiers so telemetry updates don’t refire the focus logic.
+   - **Acceptance Criteria:** Clicking Michael or Jim keeps their info panel open until the user dismisses it, and the behavior matches other nodes.
+
 ## High Effort
 1. Accelerate CI builds with caching and smarter service selection
    - **Problem:** Every PR rebuilt all service images, wasting Release time.
