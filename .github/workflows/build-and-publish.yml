@@ -60,7 +60,7 @@ jobs:
       - name: Determine registry host
         id: registry
         run: |
-          registry="${REGISTRY}"
+          registry="${REGISTRY:-}"
           if [[ "$registry" == */* ]]; then
             host="${registry%%/*}"
           else

@@ -79,9 +79,11 @@ jobs:
 
       - name: Export release metadata
         run: |
-          echo "LABELS_JSON=${{ steps.pr_metadata.outputs.labels || '[]' }}" >> "$GITHUB_ENV"
-          echo "HAS_PR=${{ steps.pr_metadata.outputs.has_pr || 'false' }}" >> "$GITHUB_ENV"
-          echo "MERGE_SHA=${{ steps.pr_metadata.outputs.merge_sha || github.sha }}" >> "$GITHUB_ENV"
+          {
+            echo "LABELS_JSON=${{ steps.pr_metadata.outputs.labels || '[]' }}"
+            echo "HAS_PR=${{ steps.pr_metadata.outputs.has_pr || 'false' }}"
+            echo "MERGE_SHA=${{ steps.pr_metadata.outputs.merge_sha || github.sha }}"
+          } >> "$GITHUB_ENV"
 
       - name: Decide release gate
         id: release_gate
@@ -162,28 +164,28 @@ jobs:
           FRONTEND_CHANGED: ${{ steps.service_filter.outputs.frontend }}
         run: |
           python - <<'PY'
-import json
-import os
+          import json
+          import os
 
-event = os.environ.get("EVENT_NAME")
-services = []
-if event == "workflow_dispatch":
-    services = ["agent", "aggregator", "frontend"]
-else:
-    mapping = {
-        "agent": os.environ.get("AGENT_CHANGED"),
-        "aggregator": os.environ.get("AGGREGATOR_CHANGED"),
-        "frontend": os.environ.get("FRONTEND_CHANGED"),
-    }
-    services = [svc for svc, flag in mapping.items() if flag == "true"]
+          event = os.environ.get("EVENT_NAME")
+          services = []
+          if event == "workflow_dispatch":
+              services = ["agent", "aggregator", "frontend"]
+          else:
+              mapping = {
+                  "agent": os.environ.get("AGENT_CHANGED"),
+                  "aggregator": os.environ.get("AGGREGATOR_CHANGED"),
+                  "frontend": os.environ.get("FRONTEND_CHANGED"),
+              }
+              services = [svc for svc, flag in mapping.items() if flag == "true"]
 
-services_json = json.dumps(services)
-services_csv = ",".join(services)
-with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
-    fh.write(f"services={services_json}\n")
-    fh.write(f"services_csv={services_csv}\n")
-    fh.write(f"service_count={len(services)}\n")
-PY
+          services_json = json.dumps(services)
+          services_csv = ",".join(services)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"services={services_json}\n")
+              fh.write(f"services_csv={services_csv}\n")
+              fh.write(f"service_count={len(services)}\n")
+          PY
 
       - name: Apply service change gate
         id: service_gate
@@ -336,19 +338,19 @@ PY
         run: |
           set -euo pipefail
           mapfile -t service_list < <(python3 - <<'PY'
-import json
-import os
+          import json
+          import os
 
-detected = json.loads(os.environ.get("CHANGED_SERVICES_JSON") or "[]")
-allowed_raw = os.environ.get("HOMELAB_DEPLOYMENTS_SERVICES", "")
-allowed = [item.strip() for item in allowed_raw.split(",") if item.strip()]
-if not allowed:
-    final = detected
-else:
-    final = [svc for svc in detected if svc in allowed]
-for svc in final:
-    print(svc)
-PY
+          detected = json.loads(os.environ.get("CHANGED_SERVICES_JSON") or "[]")
+          allowed_raw = os.environ.get("HOMELAB_DEPLOYMENTS_SERVICES", "")
+          allowed = [item.strip() for item in allowed_raw.split(",") if item.strip()]
+          if not allowed:
+              final = detected
+          else:
+              final = [svc for svc in detected if svc in allowed]
+          for svc in final:
+              print(svc)
+          PY
           )
           if [[ ${#service_list[@]} -eq 0 ]]; then
             echo "No deployments require image updates."
@@ -372,4 +374,4 @@ PY
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
           git commit -m "chore: update homelab-map images to $VERSION"
-          git push "https://x-access-token:${{ secrets.HOMELAB_DEPLOYMENTS_TOKEN }}@github.com/slashr/homelab-deployments.git" HEAD:${HOMELAB_DEPLOYMENTS_BRANCH}
+          git push "https://x-access-token:${{ secrets.HOMELAB_DEPLOYMENTS_TOKEN }}@github.com/slashr/homelab-deployments.git" "HEAD:${HOMELAB_DEPLOYMENTS_BRANCH}"
