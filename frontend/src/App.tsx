@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
 import ClusterMap from './components/ClusterMap';
 import StatsPanel from './components/StatsPanel';
@@ -16,6 +16,7 @@ function App() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selection, setSelection] = useState<{ id: string; token: number } | null>(null);
   
   // Load theme preference from localStorage, default to light mode
   const [darkMode, setDarkMode] = useState(() => {
@@ -54,6 +55,20 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (!selection?.id) {
+      return;
+    }
+    const exists = nodes.some((node) => node.name === selection.id);
+    if (!exists) {
+      setSelection(null);
+    }
+  }, [nodes, selection?.id]);
+
+  const handleNodeSelect = useCallback((nodeName: string) => {
+    setSelection({ id: nodeName, token: Date.now() });
+  }, []);
+
   if (loading) {
     return (
       <div className="loading-container">
@@ -80,8 +95,20 @@ function App() {
       </header>
       
       <div className="app-content">
-        <StatsPanel stats={stats} nodes={nodes} darkMode={darkMode} />
-        <ClusterMap nodes={nodes} connections={connections} darkMode={darkMode} />
+        <StatsPanel
+          stats={stats}
+          nodes={nodes}
+          darkMode={darkMode}
+          selectedNodeId={selection?.id || null}
+          onNodeSelect={handleNodeSelect}
+        />
+        <ClusterMap
+          nodes={nodes}
+          connections={connections}
+          darkMode={darkMode}
+          selectedNodeId={selection?.id || null}
+          selectionToken={selection?.token || 0}
+        />
       </div>
     </div>
   );

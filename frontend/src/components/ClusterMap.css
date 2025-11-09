@@ -22,6 +22,12 @@
   transform: scale(1.1);
 }
 
+.character-marker.selected img {
+  transform: scale(1.12);
+  box-shadow: 0 0 16px rgba(255, 213, 79, 0.8);
+  border-radius: 50%;
+}
+
 .node-popup {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   border-radius: 8px;

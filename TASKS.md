@@ -26,7 +26,7 @@
    - **Acceptance Criteria:** After simulating a node silently disappearing, `/api/nodes` reports one fewer node, `/api/connections` omits its connections, and `/api/stats` recalculates totals accordingly.
    - **Plan:** Add a helper that iterates over `nodes_data`/`connections_data`, compares `received_at`, and drops old entries before the API responses are built. Consider caching the cleanup timestamp so it only runs once per query to limit CPU in busy deployments.
 
-3. Make sidebar nodes focus the map when clicked
+3. [DONE] Make sidebar nodes focus the map when clicked
    - **Problem:** The `StatsPanel` lists every node, but clicking an entry does nothing, forcing users to hunt for the marker manually on the map.
    - **Proposed Solution:** Wire up click handlers that emit an event or shared state notifying `ClusterMap` of the selected node, then pan/zoom the Leaflet map to that node’s coordinates and optionally highlight it.
    - **Acceptance Criteria:** Clicking a node entry centers and zooms the map around that node, the interaction works in both light/dark modes, and the UX is debounced so rapid clicks don’t jitter.
