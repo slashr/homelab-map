@@ -44,7 +44,7 @@ When AXP is mentioned in the task, either by the user or in TASKS.md, you should
 
    If you pushed a fix for the review, then add "@codex review again" at the end of the reply to make codex reviewer review the fresh commits again. 
    
-   Once the checks are green and Codex has given you the 👍, flip the corresponding `TASKS.md` entry to `[DONE]` before merging. This bookkeeping push is exempt from the usual “rerun checks/re-request review” requirement—push it right before merging without waiting for another cycle, but do not include any other changes in that commit.
+   Once the checks are green and Codex has given you the 👍, move the corresponding entry out of `TASKS.md` and into `COMPLETED.md` before merging. This bookkeeping push is exempt from the usual “rerun checks/re-request review” requirement—push it right before merging without waiting for another cycle, but do not include any other changes in that commit.
    
 7. **Merge:**
    If PR checks are green and codex has given a approval and all review comments (if any) are addressed, it can be merged
@@ -59,7 +59,7 @@ When AXP is mentioned in the task, either by the user or in TASKS.md, you should
    ```
 
    * If it **fails**, open a minimal **Recovery PR** and repeat the loop. Try up to **3** times. If still failing, **escalate** (see Stop Conditions).
-9. **Close the loop:** Mark the task `DONE` in `TASKS.md` and **pick the next AXP task**.
+9. **Close the loop:** Ensure the finished task now lives in `COMPLETED.md` (and is removed from `TASKS.md`), then **pick the next AXP task**.
 
 ---
 
