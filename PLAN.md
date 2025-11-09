@@ -1,20 +1,22 @@
-# ExecPlan: Sidebar Info Panel Fix (TASK-003)
+# ExecPlan: Globe-Based Cluster View (TASK-004)
 
 ## Goal
-Ensure the node info popup opened from the sidebar selection no longer closes a second later for Michael/Jim (or any co-located nodes) by hardening the `SelectedNodeFocus` logic in `ClusterMap`.
+Replace the flat Leaflet map with an interactive 3D globe (Google Earth style) that still visualizes nodes and their connections, supports sidebar-driven focusing, and respects light/dark mode.
 
 ## Steps
-1. **Root-cause review**
-   - Study `ClusterMap.tsx` to see how `MarkerClusterGroup.zoomToShowLayer`, `map.flyTo`, and popup timing interact.
-   - Confirm where popups might close automatically (e.g., during cluster animations) and capture the selection timestamp for heuristics.
+1. **Approach selection**
+   - Evaluate `react-globe.gl` (Three.js-based) for rendering HTML markers and arc connections.
+   - Sketch how node avatars, selection highlighting, and stats-panel interactions map onto the globe controls/API.
 
-2. **Popup stabilization**
-   - Refactor `SelectedNodeFocus` so popups open only after the fly-to animation completes, with fallbacks if no move occurs.
-   - Add a listener that reopens the popup once if it closes within ~2–3 seconds of selection (to cover cluster-induced closes) without preventing manual dismissals later.
+2. **Implementation**
+   - Introduce the new dependency (`react-globe.gl` + `three`) and remove unused Leaflet packages.
+   - Rebuild `ClusterMap.tsx` around the globe component: render nodes as custom HTML elements, draw arcs for connections, animate focus on sidebar selection, and surface a lightweight info card in lieu of Leaflet popups.
+   - Update CSS to style the globe container, overlay cards, and ensure dark/light theming works against the WebGL canvas.
 
-3. **Validation**
-   - Run `npm run build` inside `frontend/` to ensure the TypeScript bundle succeeds.
-   - Spot-check TypeScript types and lint warnings during build logs.
+3. **Validation & polish**
+   - Run `npm install` (to refresh lockfile) and `npm run build` to confirm the React bundle passes TypeScript/ESLint.
+   - Manually sanity-check via reasoning (since no UI access) that selection + theming interactions fire through the new APIs.
 
 ## Validation
+- `cd frontend && npm install`
 - `cd frontend && npm run build`
