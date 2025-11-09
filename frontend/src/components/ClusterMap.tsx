@@ -145,8 +145,8 @@ const SelectedNodeFocus: React.FC<{
         return;
       }
       const latLng = L.latLng(lat, lon);
-      const zoomTarget = Math.max(map.getZoom(), SIDEBAR_FOCUS_ZOOM);
       const flyToTarget = () => {
+        const zoomTarget = Math.max(map.getZoom(), SIDEBAR_FOCUS_ZOOM);
         map.flyTo(latLng, zoomTarget, {
           animate: true,
           duration: 0.7,
