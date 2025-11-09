@@ -47,15 +47,13 @@ A real-time visualization tool for monitoring your k3s homelab cluster across mu
 
 ### Setup
 
-1. **Configure your home location** - Edit `agent/agent.py` (lines 32-36):
-   ```python
-   HOME_LOCATION = {
-       'city': 'Your City',  # Just your city name
-       'lat': 30.2672,       # Approximate latitude
-       'lon': -97.7431,      # Approximate longitude
-   }
+1. **Configure your home location** - Set environment variables before starting the agent (or add them to your DaemonSet manifest):
+   ```bash
+   export HOME_CITY="Austin, TX"
+   export HOME_LAT=30.2672
+   export HOME_LON=-97.7431
    ```
-   Find coordinates at https://www.latlong.net/
+   The agent falls back to Berlin, Germany when these variables are omitted. Find coordinates at https://www.latlong.net/.
 
 2. **Update Docker registry** - Edit image names in `k8s/*.yaml` or set env var:
    ```bash
@@ -70,6 +68,14 @@ A real-time visualization tool for monitoring your k3s homelab cluster across mu
   export NODE_TIMEOUT_SECONDS=300
   cd aggregator
   uvicorn main:app --reload
+  ```
+
+- `HOME_CITY`, `HOME_LAT`, `HOME_LON` (agent): Override the default Berlin home marker for your on-prem nodes. Set these before building or deploying the agent container:
+
+  ```bash
+  export HOME_CITY="Austin, TX"
+  export HOME_LAT=30.2672
+  export HOME_LON=-97.7431
   ```
 
 ### Deployment

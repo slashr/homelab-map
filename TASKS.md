@@ -1,14 +1,14 @@
 # TASKS
 
 ## Low Effort
-1. [IN PROGRESS] Make `NODE_TIMEOUT` configurable
+1. [DONE] Make `NODE_TIMEOUT` configurable
    - **Problem:** `aggregator/main.py` currently hardcodes `NODE_TIMEOUT = 120`, so the online/offline thresholds in `/api/nodes` and `/api/stats` cannot be tuned for larger clusters or when nodes naturally report slower (e.g., during performance testing).
    - **Proposed Solution:** Read `NODE_TIMEOUT_SECONDS` (or similar) from the environment, defaulting to 120, and reuse that value everywhere the code currently references the constant.
    - **Acceptance Criteria:** `NODE_TIMEOUT` becomes a runtime configuration, the default behavior is unchanged, and tests cover both the default and a custom timeout via monkeypatching.
    - **Plan:** Add a helper near the existing constant to load the env var, update the comparisons inside `get_all_nodes`/`get_cluster_stats`, and ensure the new configuration is documented in `README.md`.
    - **Alternatives:** Keep the constant but expose a configuration file; chosen path keeps the fast startup flow simple and consistent with the rest of the service.
 
-2. Allow the agent home location to be injected via environment variables
+2. [IN PROGRESS] Allow the agent home location to be injected via environment variables
    - **Problem:** `agent/agent.py` requires editing the `HOME_LOCATION` dictionary (lines 32‑36) to reposition the on-prem nodes, which is inconvenient and error-prone for people who run their own clusters.
    - **Proposed Solution:** Build `HOME_LOCATION` from optional env vars such as `HOME_CITY`, `HOME_LAT`, and `HOME_LON`, falling back to the current defaults when the vars are absent.
    - **Acceptance Criteria:** Agents can be redeployed without changing Python code by overriding env vars, and the README lists the new variables.
