@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, GeoJSON } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L, { LatLngBoundsExpression } from 'leaflet';
+import 'leaflet.markercluster';
 import { Node, Connection } from '../types';
 import { formatBytesPerSecond } from '../utils/format';
 import ConnectionLines from './ConnectionLines';
@@ -61,6 +62,8 @@ const getFallbackAvatar = (nodeName: string): string => {
   return `https://ui-avatars.com/api/?name=${fallbackName}&size=128&background=${fallbackColor}&color=fff&bold=true`;
 };
 
+const SIDEBAR_FOCUS_ZOOM = 9;
+
 // Custom markers with character images
 const getMarkerIcon = (nodeName: string, status: string, isSelected: boolean) => {
   const imageUrl = getCharacterImage(nodeName);
@@ -119,23 +122,43 @@ const clampToRange = (value: number, min: number, max: number) => {
   return Math.max(min, Math.min(max, value));
 };
 
-const SelectedNodeFocus: React.FC<{ node?: Node; token: number }> = ({ node, token }) => {
+const SelectedNodeFocus: React.FC<{
+  node?: Node;
+  marker?: L.Marker | null;
+  clusterGroup?: L.MarkerClusterGroup | null;
+  token: number;
+}> = ({ node, marker, clusterGroup, token }) => {
   const map = useMap();
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!node || node.lat == null || node.lon == null || isNaN(node.lat) || isNaN(node.lon)) {
+    if (!node) {
       return;
     }
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
     timeoutRef.current = setTimeout(() => {
-      const targetZoom = Math.max(map.getZoom(), 5);
-      map.flyTo([node.lat!, node.lon!], targetZoom, {
-        animate: true,
-        duration: 0.7,
-      });
+      const lat = marker?.getLatLng().lat ?? node.lat;
+      const lon = marker?.getLatLng().lng ?? node.lon;
+      if (lat == null || lon == null || isNaN(lat) || isNaN(lon)) {
+        return;
+      }
+      const latLng = L.latLng(lat, lon);
+      const zoomTarget = Math.max(map.getZoom(), SIDEBAR_FOCUS_ZOOM);
+      const flyToTarget = () => {
+        map.flyTo(latLng, zoomTarget, {
+          animate: true,
+          duration: 0.7,
+        });
+        marker?.openPopup();
+      };
+
+      if (marker && clusterGroup) {
+        clusterGroup.zoomToShowLayer(marker, flyToTarget);
+      } else {
+        flyToTarget();
+      }
     }, 200);
 
     return () => {
@@ -144,7 +167,7 @@ const SelectedNodeFocus: React.FC<{ node?: Node; token: number }> = ({ node, tok
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, node?.lat, node?.lon, node?.name, token]);
+  }, [map, node?.lat, node?.lon, node?.name, token, marker, clusterGroup]);
 
   return null;
 };
@@ -287,6 +310,8 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
     isFinite(node.lat) &&
     isFinite(node.lon)
   );
+  const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
+  const markerRefs = useRef<Record<string, L.Marker>>({});
   const selectedNode = useMemo(
     () =>
       nodesWithLocation.find(
@@ -294,6 +319,7 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
       ),
     [nodesWithLocation, selectedNodeId]
   );
+  const selectedMarker = selectedNodeId ? markerRefs.current[selectedNodeId] : null;
 
   // Default center (world view)
   const center: [number, number] = [20, 0]; // Center of the world
@@ -325,7 +351,12 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
         <SingleWorldView />
         <FitBounds nodes={nodesWithLocation} />
         {selectedNode && (
-          <SelectedNodeFocus node={selectedNode} token={selectionToken} />
+          <SelectedNodeFocus
+            node={selectedNode}
+            marker={selectedMarker}
+            clusterGroup={clusterGroupRef.current}
+            token={selectionToken}
+          />
         )}
         
         {/* Highlight countries with nodes */}
@@ -356,6 +387,7 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
         )}
         
         <MarkerClusterGroup
+          ref={clusterGroupRef}
           chunkedLoading
           maxClusterRadius={50}
           spiderfyOnMaxZoom={true}
@@ -368,6 +400,13 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
               key={node.name}
               position={[node.lat!, node.lon!]}
               icon={getMarkerIcon(node.name, node.status, isSelected)}
+              ref={(markerInstance) => {
+                if (markerInstance) {
+                  markerRefs.current[node.name] = markerInstance;
+                } else {
+                  delete markerRefs.current[node.name];
+                }
+              }}
               zIndexOffset={isSelected ? 1000 : 0}
             >
               <Tooltip direction="top" offset={[0, -45]} opacity={0.9}>
