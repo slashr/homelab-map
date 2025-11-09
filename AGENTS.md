@@ -10,7 +10,6 @@ When AXP is mentioned in the task, either by the user or in TASKS.md, you should
 2. **Merge gate:** Only merge when **all required checks are green** **and** Codex has given a **👍** (review approval, approving comment, or 👍 on PR description).
 3. **Act, don’t wait.** Use local CLIs (`git`, `gh`, `kubectl`, `aws`, `terraform`, `ansible-playbook`) and **poll** proactively; no user nudges.
 4. **Finish the loop before switching tasks.** Do not start another task or PR until the current one has (a) passing checks, (b) Codex 👍, (c) been merged, and (d) its post-merge Release workflow (or equivalent automation) has completed successfully.
-5. **Debug failed workflows via annotations.** When a GitHub Actions run fails before executing jobs (e.g., “workflow file issue”), immediately open the run URL (or use `gh run view --summary`) and inspect the **Annotations** section for the exact YAML/config error. These annotations appear even when no logs/jobs exist, so checking them is the fastest way to pinpoint syntax issues.
 
 ---
 
