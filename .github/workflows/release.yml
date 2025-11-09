@@ -186,28 +186,28 @@ jobs:
           FRONTEND_CHANGED: ${{ needs.changes.outputs.frontend }}
         run: |
           python - <<'PY'
-import json
-import os
+          import json
+          import os
 
-event = os.environ.get("EVENT_NAME")
-services = []
-if event == "workflow_dispatch":
-    services = ["agent", "aggregator", "frontend"]
-else:
-    mapping = {
-        "agent": os.environ.get("AGENT_CHANGED"),
-        "aggregator": os.environ.get("AGGREGATOR_CHANGED"),
-        "frontend": os.environ.get("FRONTEND_CHANGED"),
-    }
-    services = [svc for svc, flag in mapping.items() if flag == "true"]
+          event = os.environ.get("EVENT_NAME")
+          services = []
+          if event == "workflow_dispatch":
+              services = ["agent", "aggregator", "frontend"]
+          else:
+              mapping = {
+                  "agent": os.environ.get("AGENT_CHANGED"),
+                  "aggregator": os.environ.get("AGGREGATOR_CHANGED"),
+                  "frontend": os.environ.get("FRONTEND_CHANGED"),
+              }
+              services = [svc for svc, flag in mapping.items() if flag == "true"]
 
-services_json = json.dumps(services)
-services_csv = ",".join(services)
-with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
-    fh.write(f"services={services_json}\n")
-    fh.write(f"services_csv={services_csv}\n")
-    fh.write(f"service_count={len(services)}\n")
-PY
+          services_json = json.dumps(services)
+          services_csv = ",".join(services)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"services={services_json}\n")
+              fh.write(f"services_csv={services_csv}\n")
+              fh.write(f"service_count={len(services)}\n")
+          PY
 
       - name: Apply service change gate
         id: service_gate
