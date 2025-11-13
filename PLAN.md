@@ -1,22 +1,48 @@
-# ExecPlan: Fix Globe Squishing Issue
+# ExecPlan: Globe Rotation Constraints & Animated Arc Tooltips
 
 ## Goal
-Fix the 3D globe visualization so it maintains a proper 1:1 aspect ratio and doesn't appear squished when the container has non-square dimensions.
+1. Restrict globe rotation to mostly horizontal (left-right) with minimal vertical tilting for better UX
+2. Animate network connection lines (arcs) and add hover tooltips showing connection information
 
 ## Problem
-The globe canvas was using independent width and height constraints (`min(900px, 100%)` for both), which caused the globe to be squished when the container had a non-square aspect ratio.
+- Globe currently allows free rotation in all directions, which can be disorienting
+- Connection arcs are static (no animation) and don't show information on hover
+- Users can't easily see connection details without selecting nodes
 
 ## Solution
-Update the CSS to:
-1. Set width to `min(900px, 100%)`
-2. Use `aspect-ratio: 1 / 1` to enforce a square shape
-3. Add `max-height: 100%` to prevent overflow
-4. Remove explicit height constraint to let aspect-ratio control it
+
+### 1. Restrict Globe Rotation
+- Access OrbitControls from react-globe.gl's controls()
+- Set `minPolarAngle` and `maxPolarAngle` to constrain vertical rotation
+- Allow slight tilting (e.g., 10-15 degrees from horizontal) but prevent full vertical rotation
+- Keep horizontal rotation (azimuth) unrestricted
+
+### 2. Animate Connection Arcs
+- Enable arc animation by setting `arcDashAnimateTime` to a non-zero value (e.g., 2000ms)
+- Keep `arcDashLength` and `arcDashGap` configured for visible animation
+- Ensure animation works in both light and dark modes
+
+### 3. Add Arc Hover Tooltips
+- Use react-globe.gl's `onArcHover` callback to detect hover events
+- Create a tooltip component that displays:
+  - Source node → Target node
+  - Latency in ms
+  - Connection status/quality based on latency
+- Position tooltip near the cursor or arc midpoint
+- Style tooltip to match existing dark/light theme
 
 ## Changes
-- `frontend/src/components/ClusterMap.css`: Update `.cluster-map canvas` styles to maintain aspect ratio
+- `frontend/src/components/ClusterMap.tsx`:
+  - Update controls setup to restrict polar angle (vertical rotation)
+  - Enable arc animation via `arcDashAnimateTime`
+  - Add `onArcHover` handler and tooltip state
+  - Create tooltip component for arc information
+- `frontend/src/components/ClusterMap.css`:
+  - Add styles for arc tooltip (positioning, theming, animations)
 
 ## Validation
-- Verify the globe appears as a proper sphere (not squished) in the browser
-- Test in both light and dark modes
-- Ensure the globe scales properly when resizing the window
+- Verify globe only rotates horizontally with minimal vertical tilting
+- Confirm arcs animate smoothly
+- Test hover tooltips appear on arc hover and show correct information
+- Ensure tooltips work in both light and dark modes
+- Test on different screen sizes

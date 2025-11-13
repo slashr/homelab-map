@@ -93,6 +93,24 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
   onNodeSelect,
 }) => {
   const globeRef = useRef<GlobeMethods>();
+  const [hoveredArc, setHoveredArc] = React.useState<GlobeConnectionDatum | null>(null);
+  const [tooltipPosition, setTooltipPosition] = React.useState<{ x: number; y: number } | null>(null);
+  const mousePositionRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Track mouse position for tooltip
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      mousePositionRef.current = { x: event.clientX, y: event.clientY };
+      if (hoveredArc) {
+        setTooltipPosition({ x: event.clientX, y: event.clientY });
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, [hoveredArc]);
 
   const nodesWithLocation = useMemo(
     () =>
@@ -185,6 +203,10 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
     controls.maxDistance = 750;
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
+    // Restrict vertical rotation to mostly horizontal with slight tilting
+    // Math.PI/2 is horizontal, allow ±0.15 radians (~8.6 degrees) of tilt
+    controls.minPolarAngle = Math.PI / 2 - 0.15;
+    controls.maxPolarAngle = Math.PI / 2 + 0.15;
   }, []);
 
   useEffect(() => {
@@ -266,13 +288,23 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
           arcColor={(arc: object) => (arc as GlobeConnectionDatum).color}
           arcStroke={1.2}
           arcAltitude={(arc: object) => (arc as GlobeConnectionDatum).altitude}
-          arcDashLength={1}
-          arcDashGap={0}
-          arcDashAnimateTime={0}
+          arcDashLength={0.4}
+          arcDashGap={0.2}
+          arcDashAnimateTime={2000}
           arcsTransitionDuration={0}
           arcLabel={(arc: object) => {
             const datum = arc as GlobeConnectionDatum;
             return `${datum.label} · ${datum.latency.toFixed(1)} ms`;
+          }}
+          onArcHover={(arc: object | null) => {
+            if (arc) {
+              setHoveredArc(arc as GlobeConnectionDatum);
+              // Initialize tooltip position with current mouse position
+              setTooltipPosition(mousePositionRef.current);
+            } else {
+              setHoveredArc(null);
+              setTooltipPosition(null);
+            }
           }}
           polygonsData={countryPolygons}
           polygonCapColor={() => (darkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)')}
@@ -288,6 +320,41 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
           labelDotRadius={0.18}
           labelResolution={2}
         />
+
+        {hoveredArc && tooltipPosition && (
+          <div
+            className={`arc-tooltip ${darkMode ? 'dark' : 'light'}`}
+            style={{
+              position: 'fixed',
+              left: `${tooltipPosition.x + 10}px`,
+              top: `${tooltipPosition.y - 10}px`,
+              pointerEvents: 'none',
+              zIndex: 1000,
+            }}
+          >
+            <div className="arc-tooltip__header">
+              <strong>{hoveredArc.label}</strong>
+            </div>
+            <div className="arc-tooltip__body">
+              <div className="arc-tooltip__row">
+                <span>Latency</span>
+                <strong>{hoveredArc.latency.toFixed(1)} ms</strong>
+              </div>
+              <div className="arc-tooltip__row">
+                <span>Quality</span>
+                <strong>
+                  {hoveredArc.latency < 20
+                    ? 'Excellent'
+                    : hoveredArc.latency < 60
+                    ? 'Good'
+                    : hoveredArc.latency < 120
+                    ? 'Fair'
+                    : 'Poor'}
+                </strong>
+              </div>
+            </div>
+          </div>
+        )}
 
         {selectedNode && (
           <div className={`node-info-card ${darkMode ? 'dark' : 'light'}`}>
