@@ -1,24 +1,22 @@
-# ExecPlan: Globe Interaction & Detail Polish
+# ExecPlan: Fix Globe Squishing Issue
 
 ## Goal
-Improve the 3D globe UX by stopping the constant auto-rotation, allowing marker clicks to open the info card, centering the globe visually, and layering in geographic context (borders + capital labels).
+Fix the 3D globe visualization so it maintains a proper 1:1 aspect ratio and doesn't appear squished when the container has non-square dimensions.
 
-## Steps
-1. **Marker interaction & selection**
-   - Extend `ClusterMap` to accept an `onNodeSelect` callback from `App` and attach click/keyboard handlers to each HTML marker so map clicks mirror sidebar selections.
-   - Remove the auto-rotate logic so the globe stays still unless the user drags it.
+## Problem
+The globe canvas was using independent width and height constraints (`min(900px, 100%)` for both), which caused the globe to be squished when the container had a non-square aspect ratio.
 
-2. **Layout centering**
-   - Adjust `.cluster-map` / `.globe-wrapper` styles (and canvas display rules) so the globe canvas is centered regardless of the floating info card, and ensure markers show a pointer cursor.
+## Solution
+Update the CSS to:
+1. Set width to `min(900px, 100%)`
+2. Use `aspect-ratio: 1 / 1` to enforce a square shape
+3. Add `max-height: 100%` to prevent overflow
+4. Remove explicit height constraint to let aspect-ratio control it
 
-3. **Geographic detail**
-   - Import `world-atlas` + `topojson-client` to render subtle country polygons and add a curated `capitals.ts` dataset rendered via `labelsData` for quick visual reference.
-
-4. **Validation**
-   - `npm install` (for new topojson/world-atlas deps) and `npm run build` to confirm CRA compiles.
-   - Verify `npm audit` stays clean.
+## Changes
+- `frontend/src/components/ClusterMap.css`: Update `.cluster-map canvas` styles to maintain aspect ratio
 
 ## Validation
-- `cd frontend && npm install`
-- `cd frontend && npm run build`
-- `cd frontend && npm audit`
+- Verify the globe appears as a proper sphere (not squished) in the browser
+- Test in both light and dark modes
+- Ensure the globe scales properly when resizing the window
