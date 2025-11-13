@@ -30,7 +30,9 @@
 
 .cluster-map canvas {
   width: min(900px, 100%) !important;
-  height: min(900px, 100%) !important;
+  aspect-ratio: 1 / 1 !important;
+  max-height: 100% !important;
+  object-fit: contain;
   margin: 0 auto;
   display: block;
 }
