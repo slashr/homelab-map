@@ -1,15 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
-import Globe, { GlobeMethods } from 'react-globe.gl';
+import { geoMercator, geoPath } from 'd3-geo';
+import { select } from 'd3-selection';
 import { feature } from 'topojson-client';
 import countriesTopo from 'world-atlas/countries-110m.json';
 import type { FeatureCollection, Geometry } from 'geojson';
 import { capitalLabels, CapitalLabel } from '../data/capitals';
 import { Node, Connection } from '../types';
 import { formatBytesPerSecond } from '../utils/format';
-import * as THREE from 'three';
+import './FlatMap.css';
 import './ClusterMap.css';
 
-interface ClusterMapProps {
+interface FlatMapProps {
   nodes: Node[];
   connections: Connection[];
   darkMode: boolean;
@@ -19,28 +20,22 @@ interface ClusterMapProps {
   onNodeDeselect?: () => void;
 }
 
-interface GlobeNodeDatum extends Node {
+interface FlatMapNodeDatum extends Node {
   lat: number;
   lng: number;
   isSelected: boolean;
   theme: 'dark' | 'light';
 }
 
-interface GlobeConnectionDatum {
+interface FlatMapConnectionDatum {
   startLat: number;
   startLng: number;
   endLat: number;
   endLng: number;
   color: [string, string];
-  altitude: number;
   latency: number;
   label: string;
 }
-
-const DARK_GLOBE = 'https://unpkg.com/three-globe/example/img/earth-night.jpg';
-const LIGHT_GLOBE = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
-const BUMP_MAP = 'https://unpkg.com/three-globe/example/img/earth-topology.png';
-const STARS = 'https://unpkg.com/three-globe/example/img/night-sky.png';
 
 const getCharacterImage = (nodeName: string): string => {
   const character = nodeName.split('-')[0].toLowerCase();
@@ -86,7 +81,7 @@ const getLatencyColor = (latency: number, darkMode: boolean): [string, string] =
   return darkMode ? ['#ff3f81', '#ff0054'] : ['#ff4d6d', '#d81159'];
 };
 
-const ClusterMap: React.FC<ClusterMapProps> = ({
+const FlatMap: React.FC<FlatMapProps> = ({
   nodes,
   connections,
   darkMode,
@@ -95,12 +90,14 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
   onNodeSelect,
   onNodeDeselect,
 }) => {
-  const globeRef = useRef<GlobeMethods>();
-  const globeWrapperRef = useRef<HTMLDivElement>(null);
-  const [globeSize, setGlobeSize] = React.useState<{ width: number; height: number } | null>(null);
-  const [hoveredArc, setHoveredArc] = React.useState<GlobeConnectionDatum | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [mapSize, setMapSize] = React.useState<{ width: number; height: number } | null>(null);
+  const [hoveredArc, setHoveredArc] = React.useState<FlatMapConnectionDatum | null>(null);
   const [tooltipPosition, setTooltipPosition] = React.useState<{ x: number; y: number } | null>(null);
   const mousePositionRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const animationFrameRef = useRef<number>();
+  const dashOffsetRef = useRef<number>(0);
 
   // Track mouse position for tooltip
   useEffect(() => {
@@ -135,16 +132,6 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
     [nodes]
   );
 
-  const htmlMarkers = useMemo(
-    () =>
-      nodesWithLocation.map((node) => ({
-        ...node,
-        isSelected: node.name === selectedNodeId,
-        theme: darkMode ? 'dark' : 'light',
-      })),
-    [nodesWithLocation, selectedNodeId, darkMode]
-  );
-
   const nodeLookup = useMemo(() => {
     const map = new Map<string, { lat: number; lng: number }>();
     nodesWithLocation.forEach((node) => {
@@ -153,7 +140,7 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
     return map;
   }, [nodesWithLocation]);
 
-  const globeConnections = useMemo(() => {
+  const flatMapConnections = useMemo(() => {
     return connections
       .map((conn) => {
         const source = nodeLookup.get(conn.source_node);
@@ -162,32 +149,18 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
           return null;
         }
         const colors = getLatencyColor(conn.latency_ms, darkMode);
-        const altitude = 0.08 + Math.min(conn.latency_ms / 600, 0.3);
         return {
           startLat: source.lat,
           startLng: source.lng,
           endLat: target.lat,
           endLng: target.lng,
           color: colors,
-          altitude,
           latency: conn.latency_ms,
           label: `${conn.source_node} → ${conn.target_node}`,
-        } as GlobeConnectionDatum;
+        } as FlatMapConnectionDatum;
       })
-      .filter((value): value is GlobeConnectionDatum => Boolean(value));
+      .filter((value): value is FlatMapConnectionDatum => Boolean(value));
   }, [connections, nodeLookup, darkMode]);
-
-  const selectedNode = useMemo(
-    () => nodes.find((node) => node.name === selectedNodeId) ?? null,
-    [nodes, selectedNodeId]
-  );
-
-  const focusTarget = useMemo(
-    () => nodesWithLocation.find((node) => node.name === selectedNodeId) ?? null,
-    [nodesWithLocation, selectedNodeId]
-  );
-  const focusLat = focusTarget?.lat ?? null;
-  const focusLng = focusTarget?.lng ?? null;
 
   const countryPolygons = useMemo(() => {
     const geoJson = feature(
@@ -197,110 +170,235 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
     return geoJson.features;
   }, []);
 
-  // Handle globe resize to fill container
+  // Handle map resize
   useEffect(() => {
-    if (!globeWrapperRef.current) {
+    if (!containerRef.current) {
       return;
     }
 
-    const updateGlobeSize = () => {
-      if (!globeWrapperRef.current) {
+    const updateMapSize = () => {
+      if (!containerRef.current) {
         return;
       }
-      const container = globeWrapperRef.current;
+      const container = containerRef.current;
       const width = container.clientWidth;
       const height = container.clientHeight;
       
       if (width > 0 && height > 0) {
-        setGlobeSize({ width, height });
+        setMapSize({ width, height });
       }
     };
 
-    // Initial size
-    updateGlobeSize();
-
-    // Resize on window resize
-    window.addEventListener('resize', updateGlobeSize);
+    updateMapSize();
+    window.addEventListener('resize', updateMapSize);
     
-    // Use ResizeObserver for more accurate container size tracking
     const resizeObserver = new ResizeObserver(() => {
-      updateGlobeSize();
+      updateMapSize();
     });
     
-    resizeObserver.observe(globeWrapperRef.current);
+    resizeObserver.observe(containerRef.current);
 
     return () => {
-      window.removeEventListener('resize', updateGlobeSize);
+      window.removeEventListener('resize', updateMapSize);
       resizeObserver.disconnect();
     };
   }, []);
 
-  useEffect(() => {
-    if (!globeRef.current) {
-      return;
-    }
-    const controls = globeRef.current.controls();
-    controls.autoRotate = false;
-    controls.enableZoom = true;
-    controls.minDistance = 180;
-    controls.maxDistance = 750;
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    // Allow full rotation in all directions - no restrictions
-    controls.minPolarAngle = 0;
-    controls.maxPolarAngle = Math.PI;
-  }, []);
+  // Setup projection and path
+  const projection = useMemo(() => {
+    if (!mapSize) return null;
+    return geoMercator()
+      .scale(mapSize.width / (2 * Math.PI))
+      .translate([mapSize.width / 2, mapSize.height / 2]);
+  }, [mapSize]);
 
+  const path = useMemo(() => {
+    if (!projection) return null;
+    return geoPath().projection(projection);
+  }, [projection]);
+
+  // Animate connection lines - smooth and slow
   useEffect(() => {
+    if (!svgRef.current || !projection) return;
+
+    const animate = () => {
+      // Slower animation: move 0.3 pixels per frame (was 0.5)
+      // This creates a smoother, slower flow
+      dashOffsetRef.current = (dashOffsetRef.current - 0.3) % 20;
+      const arcs = select(svgRef.current).selectAll<SVGPathElement, FlatMapConnectionDatum>('.connection-line');
+      arcs.attr('stroke-dashoffset', dashOffsetRef.current);
+      animationFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    animationFrameRef.current = requestAnimationFrame(animate);
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [projection, flatMapConnections]);
+
+  // Render map
+  useEffect(() => {
+    if (!svgRef.current || !path || !projection || !mapSize) return;
+
+    const svg = select(svgRef.current);
+    svg.selectAll('*').remove();
+
+    // Draw countries
+    svg
+      .append('g')
+      .attr('class', 'countries')
+      .selectAll('path')
+      .data(countryPolygons)
+      .enter()
+      .append('path')
+      .attr('d', path as any)
+      .attr('fill', darkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)')
+      .attr('stroke', darkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.25)')
+      .attr('stroke-width', 0.5);
+
+    // Draw connections
+    const connectionGroup = svg.append('g').attr('class', 'connections');
+    
+    flatMapConnections.forEach((conn) => {
+      const start = projection([conn.startLng, conn.startLat]);
+      const end = projection([conn.endLng, conn.endLat]);
+      
+      if (!start || !end) return;
+
+      const line = connectionGroup
+        .append('path')
+        .attr('class', 'connection-line')
+        .attr('d', `M ${start[0]},${start[1]} L ${end[0]},${end[1]}`)
+        .attr('stroke', conn.color[0])
+        .attr('stroke-width', 2)
+        .attr('stroke-dasharray', '10 5')
+        .attr('stroke-dashoffset', 0)
+        .attr('fill', 'none')
+        .attr('opacity', 0.7)
+        .style('cursor', 'pointer')
+        .on('mouseenter', function() {
+          select(this).attr('opacity', 1).attr('stroke-width', 3);
+          setHoveredArc(conn);
+          setTooltipPosition(mousePositionRef.current);
+        })
+        .on('mouseleave', function() {
+          select(this).attr('opacity', 0.7).attr('stroke-width', 2);
+          setHoveredArc(null);
+          setTooltipPosition(null);
+        });
+    });
+
+    // Draw capital labels
+    const labelsGroup = svg.append('g').attr('class', 'labels');
+    capitalLabels.forEach((label) => {
+      const coords = projection([label.lng, label.lat]);
+      if (!coords) return;
+
+      labelsGroup
+        .append('circle')
+        .attr('cx', coords[0])
+        .attr('cy', coords[1])
+        .attr('r', 2)
+        .attr('fill', darkMode ? '#f5f5ff' : '#0b1740')
+        .attr('opacity', 0.6);
+
+      labelsGroup
+        .append('text')
+        .attr('x', coords[0] + 4)
+        .attr('y', coords[1] + 3)
+        .attr('font-size', '10px')
+        .attr('fill', darkMode ? '#f5f5ff' : '#0b1740')
+        .attr('opacity', 0.7)
+        .text(label.name);
+    });
+
+    // Draw nodes
+    const nodesGroup = svg.append('g').attr('class', 'nodes');
+    nodesWithLocation.forEach((node) => {
+      const coords = projection([node.lng, node.lat]);
+      if (!coords) return;
+
+      const isSelected = node.name === selectedNodeId;
+      const nodeGroup = nodesGroup
+        .append('g')
+        .attr('class', `node-group ${isSelected ? 'selected' : ''}`)
+        .attr('transform', `translate(${coords[0]},${coords[1]})`)
+        .style('cursor', 'pointer')
+        .on('click', (e) => {
+          e.stopPropagation();
+          onNodeSelect?.(node.name);
+        });
+
+      // Node circle
+      nodeGroup
+        .append('circle')
+        .attr('r', isSelected ? 28 : 26)
+        .attr('fill', darkMode ? '#10101a' : '#ffffff')
+        .attr('stroke', 
+          node.status === 'online' ? '#4caf50' :
+          node.status === 'warning' ? '#ff9800' : '#9e9e9e'
+        )
+        .attr('stroke-width', isSelected ? 4 : 3)
+        .attr('filter', 'url(#node-shadow)');
+
+      // Node image
+      const image = nodeGroup
+        .append('image')
+        .attr('x', -24)
+        .attr('y', -24)
+        .attr('width', 48)
+        .attr('height', 48)
+        .attr('clip-path', 'url(#node-clip)')
+        .attr('href', getCharacterImage(node.name))
+        .on('error', function() {
+          select(this).attr('href', getFallbackAvatar(node.name));
+        });
+    });
+
+    // Add defs for shadows and clipping
+    const defs = svg.append('defs');
+    
+    // Shadow filter
+    defs
+      .append('filter')
+      .attr('id', 'node-shadow')
+      .append('feDropShadow')
+      .attr('dx', 0)
+      .attr('dy', 2)
+      .attr('stdDeviation', 3)
+      .attr('flood-opacity', 0.3);
+
+    // Clip path for circular images
+    defs
+      .append('clipPath')
+      .attr('id', 'node-clip')
+      .append('circle')
+      .attr('r', 24);
+  }, [path, projection, mapSize, countryPolygons, flatMapConnections, nodesWithLocation, selectedNodeId, darkMode, onNodeSelect]);
+
+  const selectedNode = useMemo(
+    () => nodes.find((node) => node.name === selectedNodeId) ?? null,
+    [nodes, selectedNodeId]
+  );
+
+  const handleMapClick = useCallback((event: React.MouseEvent) => {
+    const target = event.target as Element;
+    // Don't deselect if clicking on a node, connection line, or the info card
     if (
-      !selectedNodeId ||
-      !globeRef.current ||
-      focusLat == null ||
-      focusLng == null
+      target.closest('.node-group') ||
+      target.closest('.connection-line') ||
+      target.closest('.node-info-card') ||
+      target.closest('.labels')
     ) {
       return;
     }
-
-    globeRef.current.pointOfView({ lat: focusLat, lng: focusLng, altitude: 1.3 }, 900);
-  }, [selectedNodeId, selectionToken, focusLat, focusLng]);
-
-  const renderMarker = useCallback(
-    (nodeDatum: object) => {
-      const datum = nodeDatum as GlobeNodeDatum;
-      const container = document.createElement('div');
-      container.className = `globe-node ${datum.theme} status-${datum.status} ${
-        datum.isSelected ? 'selected' : ''
-      }`;
-      container.title = datum.name;
-      container.tabIndex = 0;
-      container.setAttribute('role', 'button');
-      container.style.pointerEvents = 'auto';
-
-      const handleSelect = (event?: MouseEvent | KeyboardEvent) => {
-        event?.stopPropagation();
-        onNodeSelect?.(datum.name);
-      };
-
-      container.addEventListener('click', handleSelect);
-      container.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          handleSelect(event);
-        }
-      });
-
-      const img = document.createElement('img');
-      img.alt = datum.name;
-      img.src = getCharacterImage(datum.name);
-      img.onerror = () => {
-        img.src = getFallbackAvatar(datum.name);
-      };
-      container.appendChild(img);
-
-      return container;
-    },
-    [onNodeSelect]
-  );
+    // Deselect when clicking on the container background or map countries
+    if (target === event.currentTarget || target.closest('.countries')) {
+      onNodeDeselect?.();
+    }
+  }, [onNodeDeselect]);
 
   // Handle Escape key to deselect
   useEffect(() => {
@@ -316,16 +414,9 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
     };
   }, [selectedNodeId, onNodeDeselect]);
 
-  const handleMapClick = useCallback((event: React.MouseEvent) => {
-    // Only deselect if clicking directly on the map container background, not on child elements
-    if (event.target === event.currentTarget) {
-      onNodeDeselect?.();
-    }
-  }, [onNodeDeselect]);
-
   if (nodesWithLocation.length === 0) {
     return (
-      <div className="cluster-map empty">
+      <div className="flat-map empty">
         <p>No nodes with location data available</p>
       </div>
     );
@@ -333,59 +424,18 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
 
   return (
     <div 
-      className={`cluster-map ${darkMode ? 'dark' : 'light'}`}
+      className={`flat-map ${darkMode ? 'dark' : 'light'}`}
       onClick={handleMapClick}
     >
-      <div className="globe-wrapper" ref={globeWrapperRef}>
-        <Globe
-          ref={globeRef}
-          width={globeSize?.width}
-          height={globeSize?.height}
-          backgroundColor={darkMode ? '#04030b' : '#eef2ff'}
-          backgroundImageUrl={darkMode ? STARS : null}
-          globeImageUrl={darkMode ? DARK_GLOBE : LIGHT_GLOBE}
-          bumpImageUrl={BUMP_MAP}
-          showAtmosphere
-          atmosphereColor={darkMode ? '#7c8cff' : '#8bbdfc'}
-          atmosphereAltitude={0.22}
-          htmlElementsData={htmlMarkers}
-          htmlElement={renderMarker}
-          arcsData={globeConnections}
-          arcColor={(arc: object) => (arc as GlobeConnectionDatum).color}
-          arcStroke={1.2}
-          arcAltitude={(arc: object) => (arc as GlobeConnectionDatum).altitude}
-          arcDashLength={0.6}
-          arcDashGap={0.3}
-          arcDashAnimateTime={4000}
-          arcsTransitionDuration={0}
-          arcLabel={(arc: object) => {
-            const datum = arc as GlobeConnectionDatum;
-            return `${datum.label} · ${datum.latency.toFixed(1)} ms`;
-          }}
-          onArcHover={(arc: object | null) => {
-            if (arc) {
-              setHoveredArc(arc as GlobeConnectionDatum);
-              // Initialize tooltip position with current mouse position
-              setTooltipPosition(mousePositionRef.current);
-            } else {
-              setHoveredArc(null);
-              setTooltipPosition(null);
-            }
-          }}
-          polygonsData={countryPolygons}
-          polygonCapColor={() => (darkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)')}
-          polygonSideColor={() => 'rgba(0,0,0,0)'}
-          polygonStrokeColor={() => (darkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.25)')}
-          polygonsTransitionDuration={0}
-          labelsData={capitalLabels}
-          labelLat={(label) => (label as CapitalLabel).lat}
-          labelLng={(label) => (label as CapitalLabel).lng}
-          labelText={(label) => (label as CapitalLabel).name}
-          labelColor={() => (darkMode ? '#f5f5ff' : '#0b1740')}
-          labelSize={0.45}
-          labelDotRadius={0.18}
-          labelResolution={2}
-        />
+      <div className="flat-map-wrapper" ref={containerRef}>
+        {mapSize && (
+          <svg
+            ref={svgRef}
+            width={mapSize.width}
+            height={mapSize.height}
+            className="flat-map-svg"
+          />
+        )}
 
         {hoveredArc && tooltipPosition && (
           <div
@@ -517,4 +567,5 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
   );
 };
 
-export default ClusterMap;
+export default FlatMap;
+
