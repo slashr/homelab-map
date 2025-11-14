@@ -110,11 +110,11 @@
 
 .node-info-card {
   position: absolute;
-  top: 1rem;
-  right: 1rem;
-  width: clamp(200px, 14vw, 240px);
-  border-radius: 8px;
-  padding: 0.625rem;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: clamp(160px, 12vw, 200px);
+  border-radius: 6px;
+  padding: 0.5rem;
   backdrop-filter: blur(14px);
   box-shadow: 0 15px 35px rgba(0, 0, 0, 0.25);
   z-index: 5;
@@ -135,9 +135,9 @@
 .node-info-card__header {
   display: flex;
   justify-content: space-between;
-  gap: 0.4rem;
+  gap: 0.3rem;
   align-items: flex-start;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
 }
 
 .node-info-card__header-right {
@@ -151,16 +151,16 @@
   background: transparent;
   border: none;
   color: inherit;
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   line-height: 1;
   cursor: pointer;
-  padding: 0.2rem;
-  width: 20px;
-  height: 20px;
+  padding: 0.15rem;
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 3px;
   transition: background-color 0.2s ease, opacity 0.2s ease;
   opacity: 0.7;
 }
@@ -182,21 +182,22 @@
 
 .node-info-card__header h3 {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   line-height: 1.2;
+  font-weight: 600;
 }
 
 .node-info-card__header p {
-  margin: 0.125rem 0 0 0;
+  margin: 0.1rem 0 0 0;
   opacity: 0.8;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   line-height: 1.2;
 }
 
 .status-pill {
   text-transform: uppercase;
-  font-size: 0.6rem;
-  padding: 0.2rem 0.5rem;
+  font-size: 0.55rem;
+  padding: 0.15rem 0.4rem;
   border-radius: 999px;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -220,16 +221,16 @@
 .node-info-card__body {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.3rem;
 }
 
 .info-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.7rem;
-  gap: 0.4rem;
-  line-height: 1.3;
+  font-size: 0.65rem;
+  gap: 0.3rem;
+  line-height: 1.25;
 }
 
 .info-row span {
@@ -237,10 +238,11 @@
 }
 
 .info-row code {
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   background: rgba(0, 0, 0, 0.08);
-  padding: 1px 4px;
-  border-radius: 3px;
+  padding: 1px 3px;
+  border-radius: 2px;
+  word-break: break-all;
 }
 
 .node-info-card.dark .info-row code {
@@ -251,8 +253,8 @@
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.35rem;
-  font-size: 0.65rem;
+  gap: 0.25rem;
+  font-size: 0.6rem;
 }
 
 .metrics-grid span {
@@ -261,12 +263,12 @@
 }
 
 .metrics-grid strong {
-  font-size: 0.75rem;
+  font-size: 0.65rem;
 }
 
 @media (max-width: 1100px) {
   .node-info-card {
-    width: clamp(180px, 28vw, 220px);
+    width: clamp(150px, 24vw, 180px);
   }
 }
 
