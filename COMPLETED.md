@@ -48,9 +48,14 @@
    - **Acceptance Criteria:** Sidebar width remains stable across breakpoints, `npm audit` reports zero issues, and `npm run build/start` continue working.
 
 8. Polish the 3D globe interactions
-   - **Problem:** The globe auto-rotated nonstop, pinch markers weren’t clickable, the sphere appeared off-center, and there was little geographic context (no borders/capitals).
+   - **Problem:** The globe auto-rotated nonstop, pinch markers weren't clickable, the sphere appeared off-center, and there was little geographic context (no borders/capitals).
    - **Solution:** Disabled auto-rotation, wired each HTML marker to the shared selection handler, recentered the canvas via layout tweaks, and layered country polygons plus curated capital labels using `world-atlas`/`topojson-client`.
    - **Acceptance Criteria:** Globe stays still until the user drags it, clicking a marker opens the info card, the sphere is centered in its panel, and borders/capital labels render without overwhelming the UI.
+
+9. Add map mode toggle and UX improvements
+   - **Problem:** Only globe view available, rotation was restricted, info card too large, connection animations too fast.
+   - **Solution:** Added globe/flat map toggle with localStorage persistence, created FlatMap component using d3-geo Mercator projection, removed globe rotation restrictions for full 360° rotation, reduced info card size, and improved connection animations (smoother, slower, dotted continuous lines).
+   - **Acceptance Criteria:** Toggle between globe and flat map modes, map mode preference persists, globe can rotate freely in all directions, info card is smaller and doesn't cover nodes, connection animations are smooth and slow with dotted continuous lines, works in both light and dark modes.
 
 ## High Effort
 1. Accelerate CI builds with caching and smarter service selection
