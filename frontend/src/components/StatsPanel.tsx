@@ -9,6 +9,8 @@ interface StatsPanelProps {
   darkMode: boolean;
   selectedNodeId: string | null;
   onNodeSelect: (nodeName: string) => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 const StatsPanel: React.FC<StatsPanelProps> = ({
@@ -17,13 +19,24 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
   darkMode,
   selectedNodeId,
   onNodeSelect,
+  isOpen = true,
+  onClose,
 }) => {
   if (!stats) {
     return null;
   }
 
   return (
-    <div className={`stats-panel ${darkMode ? 'dark' : 'light'}`}>
+    <div className={`stats-panel ${darkMode ? 'dark' : 'light'} ${isOpen ? 'open' : ''}`}>
+      {onClose && (
+        <button
+          className="stats-panel__close"
+          onClick={onClose}
+          aria-label="Close sidebar"
+        >
+          ×
+        </button>
+      )}
       <div className="stats-section">
         <h2>Cluster Overview</h2>
         
@@ -132,7 +145,13 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
             }`}
             role="button"
             tabIndex={0}
-            onClick={() => onNodeSelect(node.name)}
+            onClick={() => {
+              onNodeSelect(node.name);
+              // Close sidebar on mobile after selection
+              if (onClose && window.innerWidth <= 768) {
+                onClose();
+              }
+            }}
             onKeyDown={(event) => {
               if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();

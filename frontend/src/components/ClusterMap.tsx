@@ -6,6 +6,7 @@ import type { FeatureCollection, Geometry } from 'geojson';
 import { capitalLabels, CapitalLabel } from '../data/capitals';
 import { Node, Connection } from '../types';
 import { formatBytesPerSecond } from '../utils/format';
+import * as THREE from 'three';
 import './ClusterMap.css';
 
 interface ClusterMapProps {
@@ -15,6 +16,7 @@ interface ClusterMapProps {
   selectedNodeId: string | null;
   selectionToken: number;
   onNodeSelect?: (nodeName: string) => void;
+  onNodeDeselect?: () => void;
 }
 
 interface GlobeNodeDatum extends Node {
@@ -91,8 +93,11 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
   selectedNodeId,
   selectionToken,
   onNodeSelect,
+  onNodeDeselect,
 }) => {
   const globeRef = useRef<GlobeMethods>();
+  const globeWrapperRef = useRef<HTMLDivElement>(null);
+  const [globeSize, setGlobeSize] = React.useState<{ width: number; height: number } | null>(null);
   const [hoveredArc, setHoveredArc] = React.useState<GlobeConnectionDatum | null>(null);
   const [tooltipPosition, setTooltipPosition] = React.useState<{ x: number; y: number } | null>(null);
   const mousePositionRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -192,6 +197,44 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
     return geoJson.features;
   }, []);
 
+  // Handle globe resize to fill container
+  useEffect(() => {
+    if (!globeWrapperRef.current) {
+      return;
+    }
+
+    const updateGlobeSize = () => {
+      if (!globeWrapperRef.current) {
+        return;
+      }
+      const container = globeWrapperRef.current;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      
+      if (width > 0 && height > 0) {
+        setGlobeSize({ width, height });
+      }
+    };
+
+    // Initial size
+    updateGlobeSize();
+
+    // Resize on window resize
+    window.addEventListener('resize', updateGlobeSize);
+    
+    // Use ResizeObserver for more accurate container size tracking
+    const resizeObserver = new ResizeObserver(() => {
+      updateGlobeSize();
+    });
+    
+    resizeObserver.observe(globeWrapperRef.current);
+
+    return () => {
+      window.removeEventListener('resize', updateGlobeSize);
+      resizeObserver.disconnect();
+    };
+  }, []);
+
   useEffect(() => {
     if (!globeRef.current) {
       return;
@@ -203,10 +246,34 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
     controls.maxDistance = 750;
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    // Restrict vertical rotation to mostly horizontal with slight tilting
-    // Math.PI/2 is horizontal, allow ±0.15 radians (~8.6 degrees) of tilt
-    controls.minPolarAngle = Math.PI / 2 - 0.15;
-    controls.maxPolarAngle = Math.PI / 2 + 0.15;
+    // Restrict vertical rotation to mostly horizontal with minimal tilting
+    // Math.PI/2 is horizontal (equator view), allow ±0.08 radians (~4.6 degrees) of tilt
+    // This prevents disorienting vertical rotation while allowing slight perspective adjustment
+    controls.minPolarAngle = Math.PI / 2 - 0.08;
+    controls.maxPolarAngle = Math.PI / 2 + 0.08;
+    
+    // Enforce constraints by listening to change events
+    const enforceConstraints = () => {
+      const spherical = new THREE.Spherical();
+      spherical.setFromVector3(controls.object.position);
+      // Clamp polar angle if it exceeds bounds
+      if (spherical.phi < controls.minPolarAngle) {
+        spherical.phi = controls.minPolarAngle;
+        controls.object.position.setFromSpherical(spherical);
+        controls.object.lookAt(0, 0, 0);
+      } else if (spherical.phi > controls.maxPolarAngle) {
+        spherical.phi = controls.maxPolarAngle;
+        controls.object.position.setFromSpherical(spherical);
+        controls.object.lookAt(0, 0, 0);
+      }
+    };
+    
+    // Listen to change events to enforce constraints
+    controls.addEventListener('change', enforceConstraints);
+    
+    return () => {
+      controls.removeEventListener('change', enforceConstraints);
+    };
   }, []);
 
   useEffect(() => {
@@ -268,13 +335,37 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
     );
   }
 
+  // Handle Escape key to deselect
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && selectedNodeId) {
+        onNodeDeselect?.();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedNodeId, onNodeDeselect]);
+
+  const handleMapClick = useCallback((event: React.MouseEvent) => {
+    // Only deselect if clicking directly on the map container background, not on child elements
+    if (event.target === event.currentTarget) {
+      onNodeDeselect?.();
+    }
+  }, [onNodeDeselect]);
+
   return (
-    <div className={`cluster-map ${darkMode ? 'dark' : 'light'}`}>
-      <div className="globe-wrapper">
+    <div 
+      className={`cluster-map ${darkMode ? 'dark' : 'light'}`}
+      onClick={handleMapClick}
+    >
+      <div className="globe-wrapper" ref={globeWrapperRef}>
         <Globe
           ref={globeRef}
-          width={undefined}
-          height={undefined}
+          width={globeSize?.width}
+          height={globeSize?.height}
           backgroundColor={darkMode ? '#04030b' : '#eef2ff'}
           backgroundImageUrl={darkMode ? STARS : null}
           globeImageUrl={darkMode ? DARK_GLOBE : LIGHT_GLOBE}
@@ -357,15 +448,28 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
         )}
 
         {selectedNode && (
-          <div className={`node-info-card ${darkMode ? 'dark' : 'light'}`}>
+          <div 
+            className={`node-info-card ${darkMode ? 'dark' : 'light'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="node-info-card__header">
               <div>
                 <h3>{selectedNode.name}</h3>
                 {selectedNode.location && <p>{selectedNode.location}</p>}
               </div>
-              <span className={`status-pill status-${selectedNode.status}`}>
-                {selectedNode.status}
-              </span>
+              <div className="node-info-card__header-right">
+                <span className={`status-pill status-${selectedNode.status}`}>
+                  {selectedNode.status}
+                </span>
+                <button
+                  className="node-info-card__close"
+                  onClick={onNodeDeselect}
+                  aria-label="Close node details"
+                  title="Close"
+                >
+                  ×
+                </button>
+              </div>
             </div>
 
             <div className="node-info-card__body">

@@ -1,48 +1,57 @@
-# ExecPlan: Globe Rotation Constraints & Animated Arc Tooltips
+# ExecPlan: UX Improvements & Globe Fixes
 
 ## Goal
-1. Restrict globe rotation to mostly horizontal (left-right) with minimal vertical tilting for better UX
-2. Animate network connection lines (arcs) and add hover tooltips showing connection information
+1. Fix globe sizing to fill entire available space outside sidebar
+2. Add close button to node info card
+3. Add multiple ways to deselect nodes (close button, Escape key, click background)
+4. Implement collapsible sidebar for mobile devices
+5. Improve mobile responsiveness and text truncation
 
-## Problem
-- Globe currently allows free rotation in all directions, which can be disorienting
-- Connection arcs are static (no animation) and don't show information on hover
-- Users can't easily see connection details without selecting nodes
+## Problems
+1. Globe is not occupying full space - appears cropped
+2. No way to close/deselect a node once selected
+3. Sidebar takes too much space on mobile devices
+4. Long node names can overflow on small screens
 
 ## Solution
 
-### 1. Restrict Globe Rotation
-- Access OrbitControls from react-globe.gl's controls()
-- Set `minPolarAngle` and `maxPolarAngle` to constrain vertical rotation
-- Allow slight tilting (e.g., 10-15 degrees from horizontal) but prevent full vertical rotation
-- Keep horizontal rotation (azimuth) unrestricted
+### 1. Fix Globe Sizing
+- Add ResizeObserver to track container size changes
+- Pass explicit width/height to Globe component based on container dimensions
+- Update CSS to ensure globe fills available space
 
-### 2. Animate Connection Arcs
-- Enable arc animation by setting `arcDashAnimateTime` to a non-zero value (e.g., 2000ms)
-- Keep `arcDashLength` and `arcDashGap` configured for visible animation
-- Ensure animation works in both light and dark modes
+### 2. Node Selection/Deselection
+- Add close (×) button to node info card header
+- Add Escape key handler to deselect nodes
+- Allow clicking map background to deselect
+- Prevent deselection when clicking on the info card itself
 
-### 3. Add Arc Hover Tooltips
-- Use react-globe.gl's `onArcHover` callback to detect hover events
-- Create a tooltip component that displays:
-  - Source node → Target node
-  - Latency in ms
-  - Connection status/quality based on latency
-- Position tooltip near the cursor or arc midpoint
-- Style tooltip to match existing dark/light theme
+### 3. Mobile Sidebar
+- Implement collapsible drawer pattern for mobile (≤768px)
+- Add hamburger menu button in header (mobile only)
+- Add overlay backdrop when sidebar is open
+- Auto-close sidebar when selecting a node on mobile
+- Sidebar always visible on desktop
+
+### 4. Mobile Optimizations
+- Reduce header padding on mobile
+- Adjust title font size for small screens
+- Use fixed positioning for node info card on mobile
+- Add text truncation for long node names in sidebar
+- Improve touch targets
 
 ## Changes
-- `frontend/src/components/ClusterMap.tsx`:
-  - Update controls setup to restrict polar angle (vertical rotation)
-  - Enable arc animation via `arcDashAnimateTime`
-  - Add `onArcHover` handler and tooltip state
-  - Create tooltip component for arc information
-- `frontend/src/components/ClusterMap.css`:
-  - Add styles for arc tooltip (positioning, theming, animations)
+- `frontend/src/components/ClusterMap.tsx`: Add resize handling, close button, deselection handlers
+- `frontend/src/components/ClusterMap.css`: Update sizing, add close button styles, mobile fixes
+- `frontend/src/App.tsx`: Add sidebar state management, mobile toggle button
+- `frontend/src/App.css`: Add sidebar overlay, mobile header styles
+- `frontend/src/components/StatsPanel.tsx`: Add close button, mobile auto-close
+- `frontend/src/components/StatsPanel.css`: Add mobile drawer styles, close button styles
 
 ## Validation
-- Verify globe only rotates horizontally with minimal vertical tilting
-- Confirm arcs animate smoothly
-- Test hover tooltips appear on arc hover and show correct information
-- Ensure tooltips work in both light and dark modes
-- Test on different screen sizes
+- Test locally with `npm start` and browser
+- Verify globe fills entire area outside sidebar
+- Test close button, Escape key, and background click deselection
+- Test mobile sidebar toggle and auto-close
+- Test in both light and dark modes
+- Verify responsive behavior on different screen sizes

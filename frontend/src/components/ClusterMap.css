@@ -6,6 +6,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: default;
 }
 
 .cluster-map.dark {
@@ -25,13 +26,20 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
+  padding: 0;
+  overflow: hidden;
+}
+
+.globe-wrapper > * {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .cluster-map canvas {
-  width: min(900px, 100%) !important;
-  aspect-ratio: 1 / 1 !important;
-  max-height: 100% !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   margin: 0 auto;
   display: block;
@@ -128,8 +136,48 @@
   display: flex;
   justify-content: space-between;
   gap: 0.75rem;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 1rem;
+}
+
+.node-info-card__header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.node-info-card__close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.25rem;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s ease, opacity 0.2s ease;
+  opacity: 0.7;
+}
+
+.node-info-card__close:hover {
+  opacity: 1;
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.node-info-card.dark .node-info-card__close:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.node-info-card__close:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  opacity: 1;
 }
 
 .node-info-card__header h3 {
@@ -228,13 +276,22 @@
 
 @media (max-width: 700px) {
   .node-info-card {
-    position: absolute;
+    position: fixed;
     left: 50%;
     right: auto;
     transform: translateX(-50%);
     bottom: 1rem;
     top: auto;
-    width: clamp(260px, 80vw, 360px);
+    width: calc(100vw - 2rem);
+    max-width: 360px;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    z-index: 1000;
+  }
+  
+  .node-info-card__header h3 {
+    word-break: break-word;
+    overflow-wrap: break-word;
   }
 }
 
