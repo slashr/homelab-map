@@ -60,6 +60,17 @@
   transition: opacity 0.2s ease, stroke-width 0.2s ease;
 }
 
+/* Flat map view: Larger card for better readability on 2D map */
+.flat-map-wrapper .node-info-card--flat {
+  width: clamp(180px, 15vw, 240px) !important;
+}
+
+@media (max-width: 1100px) {
+  .flat-map-wrapper .node-info-card--flat {
+    width: clamp(160px, 20vw, 220px) !important;
+  }
+}
+
 /* Reuse arc-tooltip styles from ClusterMap.css */
 .arc-tooltip {
   border-radius: 8px;

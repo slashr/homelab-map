@@ -112,12 +112,17 @@
   position: absolute;
   top: 0.75rem;
   right: 0.75rem;
-  width: clamp(140px, 10vw, 160px);
   border-radius: 6px;
   padding: 0.4rem;
   backdrop-filter: blur(14px);
   box-shadow: 0 15px 35px rgba(0, 0, 0, 0.25);
   z-index: 5;
+}
+
+/* Globe view: Smaller card to avoid covering the 3D globe */
+/* Use higher specificity to override .globe-wrapper > * */
+.globe-wrapper .node-info-card--globe {
+  width: clamp(100px, 8vw, 120px) !important;
 }
 
 .node-info-card.dark {
@@ -267,20 +272,22 @@
 }
 
 @media (max-width: 1100px) {
-  .node-info-card {
-    width: clamp(130px, 20vw, 150px);
+  .globe-wrapper .node-info-card--globe {
+    width: clamp(90px, 18vw, 110px) !important;
   }
 }
 
 @media (max-width: 900px) {
-  .node-info-card {
+  .node-info-card--globe,
+  .node-info-card--flat {
     position: static;
     margin: 1rem;
   }
 }
 
 @media (max-width: 700px) {
-  .node-info-card {
+  .node-info-card--globe,
+  .node-info-card--flat {
     position: fixed;
     left: 50%;
     right: auto;
