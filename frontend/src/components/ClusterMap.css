@@ -112,9 +112,9 @@
   position: absolute;
   top: 1.5rem;
   right: 1.5rem;
-  width: clamp(280px, 22vw, 340px);
-  border-radius: 16px;
-  padding: 1.25rem;
+  width: clamp(240px, 18vw, 280px);
+  border-radius: 12px;
+  padding: 0.875rem;
   backdrop-filter: blur(14px);
   box-shadow: 0 15px 35px rgba(0, 0, 0, 0.25);
   z-index: 5;
@@ -135,9 +135,9 @@
 .node-info-card__header {
   display: flex;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.5rem;
   align-items: flex-start;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .node-info-card__header-right {
@@ -182,13 +182,13 @@
 
 .node-info-card__header h3 {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 1rem;
 }
 
 .node-info-card__header p {
   margin: 0;
   opacity: 0.8;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
 }
 
 .status-pill {
@@ -218,15 +218,15 @@
 .node-info-card__body {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 0.6rem;
 }
 
 .info-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.9rem;
-  gap: 0.75rem;
+  font-size: 0.8rem;
+  gap: 0.5rem;
 }
 
 .info-row span {
@@ -248,8 +248,8 @@
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.65rem;
-  font-size: 0.85rem;
+  gap: 0.5rem;
+  font-size: 0.75rem;
 }
 
 .metrics-grid span {
@@ -258,12 +258,12 @@
 }
 
 .metrics-grid strong {
-  font-size: 1rem;
+  font-size: 0.9rem;
 }
 
 @media (max-width: 1100px) {
   .node-info-card {
-    width: clamp(260px, 38vw, 320px);
+    width: clamp(220px, 32vw, 260px);
   }
 }
 
