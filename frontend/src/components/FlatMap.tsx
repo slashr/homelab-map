@@ -474,7 +474,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
 
         {selectedNode && (
           <div 
-            className={`node-info-card ${darkMode ? 'dark' : 'light'}`}
+            className={`node-info-card node-info-card--flat ${darkMode ? 'dark' : 'light'}`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="node-info-card__header">

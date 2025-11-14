@@ -424,7 +424,7 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
 
         {selectedNode && (
           <div 
-            className={`node-info-card ${darkMode ? 'dark' : 'light'}`}
+            className={`node-info-card node-info-card--globe ${darkMode ? 'dark' : 'light'}`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="node-info-card__header">
