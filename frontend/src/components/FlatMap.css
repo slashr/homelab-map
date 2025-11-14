@@ -1,0 +1,138 @@
+.flat-map {
+  flex: 1;
+  height: 100%;
+  position: relative;
+  border-left: 1px solid rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+}
+
+.flat-map.dark {
+  background: radial-gradient(circle at top, #0b0f26, #01040c);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.flat-map.light {
+  background: linear-gradient(135deg, #edf2ff, #f7f9ff);
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.flat-map-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  overflow: hidden;
+}
+
+.flat-map-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.flat-map.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 1rem;
+}
+
+.flat-map.light.empty {
+  color: #333;
+}
+
+.node-group {
+  transition: transform 0.2s ease;
+}
+
+.node-group.selected {
+  transform: scale(1.12);
+}
+
+.connection-line {
+  transition: opacity 0.2s ease, stroke-width 0.2s ease;
+}
+
+/* Reuse arc-tooltip styles from ClusterMap.css */
+.arc-tooltip {
+  border-radius: 8px;
+  padding: 0.75rem;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  font-size: 0.85rem;
+  min-width: 200px;
+  max-width: 300px;
+  animation: tooltipFadeIn 0.15s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.arc-tooltip.dark {
+  background: rgba(5, 6, 21, 0.95);
+  color: #f8fbff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.arc-tooltip.light {
+  background: rgba(255, 255, 255, 0.95);
+  color: #333;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.arc-tooltip__header {
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.arc-tooltip.dark .arc-tooltip__header {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.arc-tooltip.light .arc-tooltip__header {
+  border-bottom-color: rgba(0, 0, 0, 0.1);
+}
+
+.arc-tooltip__header strong {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.arc-tooltip__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.arc-tooltip__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+}
+
+.arc-tooltip__row span {
+  opacity: 0.75;
+}
+
+.arc-tooltip__row strong {
+  font-weight: 600;
+}
+
