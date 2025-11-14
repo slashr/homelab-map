@@ -327,14 +327,6 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
     [onNodeSelect]
   );
 
-  if (nodesWithLocation.length === 0) {
-    return (
-      <div className="cluster-map empty">
-        <p>No nodes with location data available</p>
-      </div>
-    );
-  }
-
   // Handle Escape key to deselect
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -355,6 +347,14 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
       onNodeDeselect?.();
     }
   }, [onNodeDeselect]);
+
+  if (nodesWithLocation.length === 0) {
+    return (
+      <div className="cluster-map empty">
+        <p>No nodes with location data available</p>
+      </div>
+    );
+  }
 
   return (
     <div 
