@@ -246,34 +246,9 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
     controls.maxDistance = 750;
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    // Restrict vertical rotation to mostly horizontal with minimal tilting
-    // Math.PI/2 is horizontal (equator view), allow ±0.08 radians (~4.6 degrees) of tilt
-    // This prevents disorienting vertical rotation while allowing slight perspective adjustment
-    controls.minPolarAngle = Math.PI / 2 - 0.08;
-    controls.maxPolarAngle = Math.PI / 2 + 0.08;
-    
-    // Enforce constraints by listening to change events
-    const enforceConstraints = () => {
-      const spherical = new THREE.Spherical();
-      spherical.setFromVector3(controls.object.position);
-      // Clamp polar angle if it exceeds bounds
-      if (spherical.phi < controls.minPolarAngle) {
-        spherical.phi = controls.minPolarAngle;
-        controls.object.position.setFromSpherical(spherical);
-        controls.object.lookAt(0, 0, 0);
-      } else if (spherical.phi > controls.maxPolarAngle) {
-        spherical.phi = controls.maxPolarAngle;
-        controls.object.position.setFromSpherical(spherical);
-        controls.object.lookAt(0, 0, 0);
-      }
-    };
-    
-    // Listen to change events to enforce constraints
-    controls.addEventListener('change', enforceConstraints);
-    
-    return () => {
-      controls.removeEventListener('change', enforceConstraints);
-    };
+    // Allow full rotation in all directions - no restrictions
+    controls.minPolarAngle = 0;
+    controls.maxPolarAngle = Math.PI;
   }, []);
 
   useEffect(() => {
@@ -379,9 +354,9 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
           arcColor={(arc: object) => (arc as GlobeConnectionDatum).color}
           arcStroke={1.2}
           arcAltitude={(arc: object) => (arc as GlobeConnectionDatum).altitude}
-          arcDashLength={0.4}
-          arcDashGap={0.2}
-          arcDashAnimateTime={2000}
+          arcDashLength={0.6}
+          arcDashGap={0.3}
+          arcDashAnimateTime={4000}
           arcsTransitionDuration={0}
           arcLabel={(arc: object) => {
             const datum = arc as GlobeConnectionDatum;
