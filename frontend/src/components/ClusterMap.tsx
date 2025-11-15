@@ -100,6 +100,7 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
   const [globeSize, setGlobeSize] = React.useState<{ width: number; height: number } | null>(null);
   const [hoveredArc, setHoveredArc] = React.useState<GlobeConnectionDatum | null>(null);
   const [tooltipPosition, setTooltipPosition] = React.useState<{ x: number; y: number } | null>(null);
+  const [nodeCardPosition, setNodeCardPosition] = React.useState<{ x: number; y: number } | null>(null);
   const mousePositionRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Track mouse position for tooltip
@@ -242,7 +243,8 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
     const controls = globeRef.current.controls();
     controls.autoRotate = false;
     controls.enableZoom = true;
-    controls.minDistance = 180;
+    // Allow zoom in to city level (reduced from 180 to 50)
+    controls.minDistance = 50;
     controls.maxDistance = 750;
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
@@ -263,6 +265,49 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
 
     globeRef.current.pointOfView({ lat: focusLat, lng: focusLng, altitude: 1.3 }, 900);
   }, [selectedNodeId, selectionToken, focusLat, focusLng]);
+
+  // Calculate node position for info card by finding the HTML marker element
+  useEffect(() => {
+    if (!selectedNodeId || !globeWrapperRef.current) {
+      setNodeCardPosition(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      if (!globeWrapperRef.current) {
+        return;
+      }
+
+      // Find the HTML marker element for the selected node
+      const markers = globeWrapperRef.current.querySelectorAll('.globe-node');
+      const selectedMarker = Array.from(markers).find((marker) => {
+        const title = marker.getAttribute('title');
+        return title === selectedNodeId;
+      });
+
+      if (selectedMarker && globeWrapperRef.current) {
+        const markerRect = selectedMarker.getBoundingClientRect();
+        const wrapperRect = globeWrapperRef.current.getBoundingClientRect();
+        setNodeCardPosition({
+          x: markerRect.left + markerRect.width / 2 - wrapperRect.left,
+          y: markerRect.top - wrapperRect.top,
+        });
+      } else {
+        setNodeCardPosition(null);
+      }
+    };
+
+    // Initial position with a small delay to allow DOM to update
+    const timeout = setTimeout(updatePosition, 100);
+    
+    // Update on interval for smooth tracking as globe rotates
+    const interval = setInterval(updatePosition, 100);
+    
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
+  }, [selectedNodeId, selectionToken]);
 
   const renderMarker = useCallback(
     (nodeDatum: object) => {
@@ -422,9 +467,14 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
           </div>
         )}
 
-        {selectedNode && (
+        {selectedNode && nodeCardPosition && (
           <div 
             className={`node-info-card node-info-card--globe ${darkMode ? 'dark' : 'light'}`}
+            style={{
+              left: `${nodeCardPosition.x}px`,
+              top: `${nodeCardPosition.y - 10}px`,
+              transform: 'translate(-50%, -100%)',
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="node-info-card__header">
