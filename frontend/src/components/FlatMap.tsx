@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { geoMercator, geoPath } from 'd3-geo';
 import { select } from 'd3-selection';
+import { zoom as d3Zoom, ZoomTransform } from 'd3-zoom';
 import { feature } from 'topojson-client';
 import countriesTopo from 'world-atlas/countries-110m.json';
 import type { FeatureCollection, Geometry } from 'geojson';
@@ -95,9 +96,13 @@ const FlatMap: React.FC<FlatMapProps> = ({
   const [mapSize, setMapSize] = React.useState<{ width: number; height: number } | null>(null);
   const [hoveredArc, setHoveredArc] = React.useState<FlatMapConnectionDatum | null>(null);
   const [tooltipPosition, setTooltipPosition] = React.useState<{ x: number; y: number } | null>(null);
+  const [nodeCardPosition, setNodeCardPosition] = React.useState<{ x: number; y: number } | null>(null);
+  const [zoomTransform, setZoomTransform] = React.useState<ZoomTransform | null>(null);
   const mousePositionRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const animationFrameRef = useRef<number>();
   const dashOffsetRef = useRef<number>(0);
+  const zoomTransformRef = useRef<ZoomTransform | null>(null);
+  const baseScaleRef = useRef<number>(1);
 
   // Track mouse position for tooltip
   useEffect(() => {
@@ -204,11 +209,14 @@ const FlatMap: React.FC<FlatMapProps> = ({
     };
   }, []);
 
-  // Setup projection and path
+  // Setup projection and path (base scale, zoom handled by SVG transform)
   const projection = useMemo(() => {
     if (!mapSize) return null;
+    const baseScale = mapSize.width / (2 * Math.PI);
+    baseScaleRef.current = baseScale;
+    
     return geoMercator()
-      .scale(mapSize.width / (2 * Math.PI))
+      .scale(baseScale)
       .translate([mapSize.width / 2, mapSize.height / 2]);
   }, [mapSize]);
 
@@ -238,15 +246,56 @@ const FlatMap: React.FC<FlatMapProps> = ({
     };
   }, [projection, flatMapConnections]);
 
+  // Setup zoom behavior
+  useEffect(() => {
+    if (!svgRef.current || !mapSize) return;
+
+    const svg = select(svgRef.current);
+    
+    // Ensure map-content group exists
+    let mapContent = svg.select<SVGGElement>('g.map-content');
+    if (mapContent.empty()) {
+      mapContent = svg.append('g').attr('class', 'map-content');
+    }
+
+    const zoomBehavior = d3Zoom<SVGSVGElement, unknown>()
+      .scaleExtent([1, 8]) // Only allow zoom in (1x to 8x), no zoom out beyond full map
+      .filter((event: any) => {
+        // Allow zoom on wheel, but prevent on node/connection clicks
+        if (event.type === 'wheel') return true;
+        if (event.type === 'mousedown' && (event.target as Element).closest('.node-group, .connection-line')) {
+          return false;
+        }
+        return event.type === 'mousedown' && event.button === 0; // Allow pan with left mouse button
+      })
+      .on('zoom', (event: any) => {
+        zoomTransformRef.current = event.transform;
+        setZoomTransform(event.transform);
+        mapContent.attr('transform', event.transform.toString());
+      });
+
+    svg.call(zoomBehavior);
+
+    return () => {
+      svg.on('.zoom', null);
+    };
+  }, [mapSize]);
+
   // Render map
   useEffect(() => {
     if (!svgRef.current || !path || !projection || !mapSize) return;
 
     const svg = select(svgRef.current);
-    svg.selectAll('*').remove();
+    let mapContent = svg.select<SVGGElement>('g.map-content');
+    if (mapContent.empty()) {
+      mapContent = svg.append('g').attr('class', 'map-content');
+    }
+    
+    // Clear only map content, not zoom container
+    mapContent.selectAll('*').remove();
 
     // Draw countries
-    svg
+    mapContent
       .append('g')
       .attr('class', 'countries')
       .selectAll('path')
@@ -259,7 +308,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
       .attr('stroke-width', 0.5);
 
     // Draw connections
-    const connectionGroup = svg.append('g').attr('class', 'connections');
+    const connectionGroup = mapContent.append('g').attr('class', 'connections');
     
     flatMapConnections.forEach((conn) => {
       const start = projection([conn.startLng, conn.startLat]);
@@ -291,7 +340,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
     });
 
     // Draw capital labels
-    const labelsGroup = svg.append('g').attr('class', 'labels');
+    const labelsGroup = mapContent.append('g').attr('class', 'labels');
     capitalLabels.forEach((label) => {
       const coords = projection([label.lng, label.lat]);
       if (!coords) return;
@@ -315,7 +364,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
     });
 
     // Draw nodes
-    const nodesGroup = svg.append('g').attr('class', 'nodes');
+    const nodesGroup = mapContent.append('g').attr('class', 'nodes');
     nodesWithLocation.forEach((node) => {
       const coords = projection([node.lng, node.lat]);
       if (!coords) return;
@@ -357,8 +406,11 @@ const FlatMap: React.FC<FlatMapProps> = ({
         });
     });
 
-    // Add defs for shadows and clipping
-    const defs = svg.append('defs');
+    // Add defs for shadows and clipping (defs should be outside transform group)
+    let defs = svg.select<SVGDefsElement>('defs');
+    if (defs.empty()) {
+      defs = svg.append('defs');
+    }
     
     // Shadow filter
     defs
@@ -382,6 +434,39 @@ const FlatMap: React.FC<FlatMapProps> = ({
     () => nodes.find((node) => node.name === selectedNodeId) ?? null,
     [nodes, selectedNodeId]
   );
+
+  // Calculate node position for info card (accounting for zoom transform)
+  useEffect(() => {
+    if (!selectedNodeId || !projection || !containerRef.current || !svgRef.current) {
+      setNodeCardPosition(null);
+      return;
+    }
+
+    const selectedNodeData = nodesWithLocation.find((node) => node.name === selectedNodeId);
+    if (!selectedNodeData) {
+      setNodeCardPosition(null);
+      return;
+    }
+
+    const coords = projection([selectedNodeData.lng, selectedNodeData.lat]);
+    if (!coords) {
+      setNodeCardPosition(null);
+      return;
+    }
+
+    // Apply zoom transform if present
+    let x = coords[0];
+    let y = coords[1];
+    if (zoomTransform) {
+      x = zoomTransform.applyX(coords[0]);
+      y = zoomTransform.applyY(coords[1]);
+    }
+
+    setNodeCardPosition({
+      x: x,
+      y: y - 10, // Position above the node
+    });
+  }, [selectedNodeId, projection, nodesWithLocation, zoomTransform]);
 
   const handleMapClick = useCallback((event: React.MouseEvent) => {
     const target = event.target as Element;
@@ -472,9 +557,14 @@ const FlatMap: React.FC<FlatMapProps> = ({
           </div>
         )}
 
-        {selectedNode && (
+        {selectedNode && nodeCardPosition && (
           <div 
-            className={`node-info-card ${darkMode ? 'dark' : 'light'}`}
+            className={`node-info-card node-info-card--flat ${darkMode ? 'dark' : 'light'}`}
+            style={{
+              left: `${nodeCardPosition.x}px`,
+              top: `${nodeCardPosition.y}px`,
+              transform: 'translate(-50%, -100%)',
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="node-info-card__header">

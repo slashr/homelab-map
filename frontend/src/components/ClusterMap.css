@@ -110,14 +110,18 @@
 
 .node-info-card {
   position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-  width: clamp(140px, 10vw, 160px);
   border-radius: 6px;
   padding: 0.4rem;
   backdrop-filter: blur(14px);
   box-shadow: 0 15px 35px rgba(0, 0, 0, 0.25);
   z-index: 5;
+  pointer-events: auto;
+}
+
+/* Globe view: Same size as flat map for consistency */
+/* Use higher specificity to override .globe-wrapper > * */
+.globe-wrapper .node-info-card--globe {
+  width: clamp(180px, 15vw, 240px) !important;
 }
 
 .node-info-card.dark {
@@ -267,26 +271,32 @@
 }
 
 @media (max-width: 1100px) {
-  .node-info-card {
-    width: clamp(130px, 20vw, 150px);
+  .globe-wrapper .node-info-card--globe {
+    width: clamp(160px, 20vw, 220px) !important;
   }
 }
 
 @media (max-width: 900px) {
-  .node-info-card {
-    position: static;
-    margin: 1rem;
+  .node-info-card--globe,
+  .node-info-card--flat {
+    position: fixed !important;
+    left: 50% !important;
+    top: auto !important;
+    bottom: 1rem !important;
+    transform: translateX(-50%) !important;
+    margin: 0;
   }
 }
 
 @media (max-width: 700px) {
-  .node-info-card {
-    position: fixed;
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-    bottom: 1rem;
-    top: auto;
+  .node-info-card--globe,
+  .node-info-card--flat {
+    position: fixed !important;
+    left: 50% !important;
+    right: auto !important;
+    top: auto !important;
+    bottom: 1rem !important;
+    transform: translateX(-50%) !important;
     width: calc(100vw - 2rem);
     max-width: 360px;
     max-height: calc(100vh - 2rem);
