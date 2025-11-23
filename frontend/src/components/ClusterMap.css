@@ -118,12 +118,17 @@
   pointer-events: auto;
 }
 
-/* Globe view: Same size as flat map for consistency */
+/* Globe view: Always use fixed center-bottom positioning for visibility */
 /* Use higher specificity to override .globe-wrapper > * */
 .globe-wrapper .node-info-card--globe {
   width: clamp(180px, 15vw, 240px) !important;
   max-height: 60vh;
   overflow-y: auto;
+  position: fixed !important;
+  left: 50% !important;
+  bottom: 2rem !important;
+  transform: translateX(-50%) !important;
+  z-index: 1000 !important;
 }
 
 .node-info-card.dark {
