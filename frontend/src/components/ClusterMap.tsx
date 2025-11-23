@@ -288,17 +288,33 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
       if (selectedMarker && globeWrapperRef.current) {
         const markerRect = selectedMarker.getBoundingClientRect();
         const wrapperRect = globeWrapperRef.current.getBoundingClientRect();
-        setNodeCardPosition({
-          x: markerRect.left + markerRect.width / 2 - wrapperRect.left,
-          y: markerRect.top - wrapperRect.top,
-        });
+        
+        // Check if marker is actually visible (has valid dimensions and is in viewport)
+        // Allow partial visibility - just check that it's not completely off-screen
+        const isVisible = 
+          markerRect.width > 0 && 
+          markerRect.height > 0 &&
+          markerRect.bottom > wrapperRect.top &&
+          markerRect.top < wrapperRect.bottom &&
+          markerRect.right > wrapperRect.left &&
+          markerRect.left < wrapperRect.right;
+        
+        if (isVisible) {
+          setNodeCardPosition({
+            x: markerRect.left + markerRect.width / 2 - wrapperRect.left,
+            y: markerRect.top - wrapperRect.top,
+          });
+        } else {
+          // Marker not visible yet, keep trying
+          setNodeCardPosition(null);
+        }
       } else {
         setNodeCardPosition(null);
       }
     };
 
-    // Initial position with a small delay to allow DOM to update
-    const timeout = setTimeout(updatePosition, 100);
+    // Wait for globe rotation to complete (900ms animation + buffer) before initial positioning
+    const timeout = setTimeout(updatePosition, 1000);
     
     // Update on interval for smooth tracking as globe rotates
     const interval = setInterval(updatePosition, 100);
