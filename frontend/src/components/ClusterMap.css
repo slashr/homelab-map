@@ -122,7 +122,6 @@
 /* Use higher specificity to override .globe-wrapper > * */
 .globe-wrapper .node-info-card--globe {
   width: clamp(180px, 15vw, 240px) !important;
-  height: fit-content;
   max-height: 60vh;
   overflow-y: auto;
   position: fixed !important;
@@ -130,6 +129,9 @@
   bottom: 2rem !important;
   transform: translateX(-50%) !important;
   z-index: 1000 !important;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .node-info-card.dark {
@@ -235,6 +237,7 @@
   flex-direction: column;
   gap: 0.25rem;
   flex-shrink: 0;
+  flex-grow: 0;
 }
 
 .info-row {
