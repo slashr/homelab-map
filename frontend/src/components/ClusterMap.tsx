@@ -483,13 +483,19 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
           </div>
         )}
 
-        {selectedNode && nodeCardPosition && (
+        {selectedNode && (
           <div 
             className={`node-info-card node-info-card--globe ${darkMode ? 'dark' : 'light'}`}
-            style={{
+            style={nodeCardPosition ? {
               left: `${nodeCardPosition.x}px`,
               top: `${nodeCardPosition.y - 10}px`,
               transform: 'translate(-50%, -100%)',
+            } : {
+              // Show popup in center-bottom when marker not visible yet
+              position: 'absolute',
+              left: '50%',
+              bottom: '2rem',
+              transform: 'translateX(-50%)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
