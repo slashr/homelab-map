@@ -7,7 +7,7 @@ When AXP is mentioned in the task, either by the user or in TASKS.md, you should
 ## Minimal Rules
 
 1. **Don’t stop early.** Keep going until a **Stop Condition** (below) is met.
-2. **Merge gate:** Only merge when **all required checks are green** **and** Codex has given a **👍** (review approval, approving comment, or 👍 on PR description).
+2. **Merge gate:** Only merge when **all required checks are green** **and** Codex has given a **👍** reaction (check via reactions API: `gh api repos/$OWNER/$REPO/issues/$PR/reactions` for `chatgpt-codex-connector[bot]` with `content: "+1"`).
 3. **Act, don’t wait.** Use local CLIs (`git`, `gh`, `kubectl`, `aws`, `terraform`, `ansible-playbook`) and **poll** proactively; no user nudges.
 4. **Finish the loop before switching tasks.** Do not start another task or PR until the current one has (a) passing checks, (b) Codex 👍, (c) been merged, and (d) its post-merge Release workflow (or equivalent automation) has completed successfully.
 5. **Read workflow annotations immediately.** When a GitHub Actions run fails before any job starts (e.g., “workflow file issue”), open the run’s “Annotations” tab (or run `gh run view <run-id> --summary`) to grab the exact YAML/config error before making changes—those details exist even when no logs/jobs were produced.
@@ -35,8 +35,25 @@ When AXP is mentioned in the task, either by the user or in TASKS.md, you should
    If you pushed fixes after PR creation and after Codex reviewer had already given a thumbs up, then request a re-review from codex reviewer by commenting "@codex review again"
    
 6. **Codex review:**
-   Codex starts a review automatically on PR creation. You will see that it adds eyes emoji to the PR description when it is revewing. 
-   The eyes emoji changes to a thumbs up emoji if review passes. If you see this then you are safe to merge. 
+   Codex starts a review automatically on PR creation. 
+   
+   **⚠️ CRITICAL: Check for Codex approval using the reactions API, NOT the PR body text!**
+   
+   Codex approval appears as a **reaction** (👍) on the PR description from `chatgpt-codex-connector[bot]`, NOT as text in the PR body.
+   
+   **Check for Codex approval:**
+   ```bash
+   # Check if Codex bot has given thumbs up reaction
+   gh api repos/$OWNER/$REPO/issues/$PR/reactions --jq '[.[] | select(.user.login == "chatgpt-codex-connector[bot]") | select(.content == "+1")] | length'
+   # Returns: 1 if approved, 0 if not approved
+   
+   # Or get full reaction details:
+   gh api repos/$OWNER/$REPO/issues/$PR/reactions --jq '.[] | select(.user.login == "chatgpt-codex-connector[bot]") | select(.content == "+1") | {user: .user.login, content: .content, created_at: .created_at}'
+   ```
+   
+   **DO NOT** check the PR body text for emojis - reactions are separate from body text!
+   
+   If Codex has given 👍 reaction, you are safe to merge. 
 
    Otherwise, codex reviewer leaves a review comment as a reply to one of it's main comments. 
 
