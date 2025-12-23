@@ -119,23 +119,55 @@ const FlatMap: React.FC<FlatMapProps> = ({
     };
   }, [hoveredArc]);
 
-  const nodesWithLocation = useMemo(
-    () =>
-      nodes
-        .filter(
-          (node) =>
-            node.lat != null &&
-            node.lon != null &&
-            !Number.isNaN(node.lat) &&
-            !Number.isNaN(node.lon)
-        )
-        .map((node) => ({
-          ...node,
-          lat: node.lat as number,
-          lng: node.lon as number,
-        })),
-    [nodes]
-  );
+  const nodesWithLocation = useMemo(() => {
+    // First, filter nodes with valid locations
+    const validNodes = nodes
+      .filter(
+        (node) =>
+          node.lat != null &&
+          node.lon != null &&
+          !Number.isNaN(node.lat) &&
+          !Number.isNaN(node.lon)
+      )
+      .map((node) => ({
+        ...node,
+        lat: node.lat as number,
+        lng: node.lon as number,
+      }));
+    
+    // Group nodes by approximate location (within 0.01 degrees ~ 1km)
+    const locationGroups = new Map<string, typeof validNodes>();
+    validNodes.forEach((node) => {
+      // Round to 2 decimal places to group nearby nodes
+      const key = `${Math.round(node.lat * 100) / 100},${Math.round(node.lng * 100) / 100}`;
+      if (!locationGroups.has(key)) {
+        locationGroups.set(key, []);
+      }
+      locationGroups.get(key)!.push(node);
+    });
+    
+    // Apply visual offset to nodes sharing the same location
+    const result: typeof validNodes = [];
+    locationGroups.forEach((groupNodes) => {
+      if (groupNodes.length === 1) {
+        // Single node, no offset needed
+        result.push(groupNodes[0]);
+      } else {
+        // Multiple nodes at same location - spread them in a circle
+        const radius = 0.5; // degrees offset (visible at map scale)
+        groupNodes.forEach((node, index) => {
+          const angle = (2 * Math.PI * index) / groupNodes.length;
+          result.push({
+            ...node,
+            lat: node.lat + radius * Math.sin(angle),
+            lng: node.lng + radius * Math.cos(angle),
+          });
+        });
+      }
+    });
+    
+    return result;
+  }, [nodes]);
 
   const nodeLookup = useMemo(() => {
     const map = new Map<string, { lat: number; lng: number }>();
