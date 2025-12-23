@@ -363,9 +363,16 @@ const FlatMap: React.FC<FlatMapProps> = ({
         .text(label.name);
     });
 
-    // Draw nodes
+    // Draw nodes - sort so selected node renders last (on top)
     const nodesGroup = mapContent.append('g').attr('class', 'nodes');
-    nodesWithLocation.forEach((node) => {
+    const sortedNodes = [...nodesWithLocation].sort((a, b) => {
+      // Selected node should be last (rendered on top)
+      if (a.name === selectedNodeId) return 1;
+      if (b.name === selectedNodeId) return -1;
+      return 0;
+    });
+    
+    sortedNodes.forEach((node) => {
       const coords = projection([node.lng, node.lat]);
       if (!coords) return;
 
