@@ -263,7 +263,7 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
       return;
     }
 
-    globeRef.current.pointOfView({ lat: focusLat, lng: focusLng, altitude: 1.3 }, 900);
+    globeRef.current.pointOfView({ lat: focusLat, lng: focusLng, altitude: 0.5 }, 900);
   }, [selectedNodeId, selectionToken, focusLat, focusLng]);
 
   // Calculate node position for info card by finding the HTML marker element
