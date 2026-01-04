@@ -1,7 +1,4 @@
-/**
- * @jest-environment node
- */
-import { getCharacterFromNodeName, getCharacterImage, getCharacterQuote } from './StatsPanel';
+import { getCharacterFromNodeName, getCharacterImage, getCharacterQuote } from '../utils/characterUtils';
 
 describe('StatsPanel utility functions', () => {
   describe('getCharacterFromNodeName', () => {

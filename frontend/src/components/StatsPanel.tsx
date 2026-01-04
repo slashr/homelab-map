@@ -1,28 +1,8 @@
 import React from 'react';
 import { ClusterStats, Node } from '../types';
 import { formatBytesPerSecond } from '../utils/format';
+import { getCharacterFromNodeName, getCharacterImage, getCharacterQuote } from '../utils/characterUtils';
 import './StatsPanel.css';
-
-export const getCharacterFromNodeName = (nodeName: string): string => {
-  return nodeName.split('-')[0].toLowerCase();
-};
-
-export const getCharacterImage = (nodeName: string): string => {
-  const character = getCharacterFromNodeName(nodeName);
-  return `/characters/${character}.jpg`;
-};
-
-export const getCharacterQuote = (character: string): string => {
-  const quotes: Record<string, string> = {
-    michael: "I'm not superstitious, but I am a little stitious.",
-    jim: "Bears. Beets. Battlestar Galactica.",
-    angela: "I don't trust you, Phyllis!",
-    phyllis: "Close your mouth, sweetie. You look like a trout.",
-    stanley: "Did I stutter?",
-    toby: "I hate so much about the things that you choose to be.",
-  };
-  return quotes[character] || "That's what she said.";
-};
 
 interface StatsPanelProps {
   stats: ClusterStats | null;
