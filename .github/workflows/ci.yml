@@ -58,4 +58,4 @@ jobs:
 
       - name: Run frontend test suite
         working-directory: frontend
-        run: npm test -- --watchAll=false --coverage=false
+        run: npm test -- --watchAll=false --coverage=false --verbose 2>&1 || (echo "Test failed, checking output..." && exit 1)
