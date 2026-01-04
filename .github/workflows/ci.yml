@@ -54,8 +54,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: |
-          npm ci || (echo "npm ci failed, trying npm install..." && npm install && npm ci)
+        run: npm install
 
       - name: Run frontend test suite
         working-directory: frontend
