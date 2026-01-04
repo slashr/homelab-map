@@ -20,6 +20,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selection, setSelection] = useState<{ id: string; token: number } | null>(null);
+  const [zoomOnly, setZoomOnly] = useState(false);
   
   // Load theme preference from localStorage, default to light mode
   const [darkMode, setDarkMode] = useState(() => {
@@ -112,10 +113,17 @@ function App() {
 
   const handleNodeSelect = useCallback((nodeName: string) => {
     setSelection({ id: nodeName, token: Date.now() });
+    setZoomOnly(false); // Show details in sidebar
+  }, []);
+
+  const handleNodeZoom = useCallback((nodeName: string) => {
+    setSelection({ id: nodeName, token: Date.now() });
+    setZoomOnly(true); // Zoom only, don't show details
   }, []);
 
   const handleNodeDeselect = useCallback(() => {
     setSelection(null);
+    setZoomOnly(false);
   }, []);
 
   if (loading) {
@@ -140,7 +148,7 @@ function App() {
             >
               ☰
             </button>
-            <h1>🏠 Homelab K3s Cluster Map</h1>
+            <h1>Dunder Mifflin</h1>
           </div>
           <div className="header-right">
             <button 
@@ -178,7 +186,9 @@ function App() {
           nodes={nodes}
           darkMode={darkMode}
           selectedNodeId={selection?.id || null}
-          onNodeSelect={handleNodeSelect}
+          showDetails={selection !== null && !zoomOnly}
+          onNodeSelect={handleNodeZoom}
+          onNodeDeselect={handleNodeDeselect}
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
         />
