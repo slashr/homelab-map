@@ -12,6 +12,7 @@ import subprocess
 import statistics
 import requests
 import psutil
+from typing import Optional
 from kubernetes import client, config
 
 # Configure logging
