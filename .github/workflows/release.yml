@@ -132,7 +132,11 @@ jobs:
           set -euo pipefail
           base="${{ github.event.before }}"
           if [[ -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]]; then
-            if git rev-parse HEAD^ >/dev/null 2>&1; then
+            # For merge commits, try to find the merge base
+            if git rev-parse HEAD^2 >/dev/null 2>&1; then
+              # This is a merge commit, use the first parent (main branch before merge)
+              base="$(git rev-parse HEAD^1)"
+            elif git rev-parse HEAD^ >/dev/null 2>&1; then
               base="$(git rev-parse HEAD^)"
             else
               base="$(git hash-object -t tree /dev/null)"
