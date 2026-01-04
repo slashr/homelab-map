@@ -5,7 +5,6 @@ import countriesTopo from 'world-atlas/countries-110m.json';
 import type { FeatureCollection, Geometry } from 'geojson';
 import { capitalLabels, CapitalLabel } from '../data/capitals';
 import { Node, Connection } from '../types';
-import * as THREE from 'three';
 import './ClusterMap.css';
 
 interface ClusterMapProps {

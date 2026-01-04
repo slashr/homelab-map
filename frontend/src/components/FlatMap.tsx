@@ -5,9 +5,8 @@ import { zoom as d3Zoom, zoomIdentity, ZoomTransform } from 'd3-zoom';
 import { feature } from 'topojson-client';
 import countriesTopo from 'world-atlas/countries-110m.json';
 import type { FeatureCollection, Geometry } from 'geojson';
-import { capitalLabels, CapitalLabel } from '../data/capitals';
+import { capitalLabels } from '../data/capitals';
 import { Node, Connection } from '../types';
-import { formatBytesPerSecond } from '../utils/format';
 import './FlatMap.css';
 import './ClusterMap.css';
 
@@ -21,12 +20,6 @@ interface FlatMapProps {
   onNodeDeselect?: () => void;
 }
 
-interface FlatMapNodeDatum extends Node {
-  lat: number;
-  lng: number;
-  isSelected: boolean;
-  theme: 'dark' | 'light';
-}
 
 interface FlatMapConnectionDatum {
   startLat: number;
@@ -671,7 +664,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
         .attr('filter', 'url(#node-shadow)');
 
       // Node image
-      const image = nodeGroup
+      nodeGroup
         .append('image')
         .attr('x', -24)
         .attr('y', -24)
