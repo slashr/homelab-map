@@ -56,23 +56,52 @@ jobs:
             core.setOutput('merge_sha', sha);
             core.setOutput('number', '');
             core.setOutput('has_pr', 'false');
+            
+            // Try to find PR associated with this commit
+            // For merge commits, we may need to check the commit message or try multiple approaches
+            let pr = null;
+            
             try {
+              // First, try to find PRs associated with this commit SHA
               const response = await github.rest.repos.listPullRequestsAssociatedWithCommit({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 commit_sha: sha,
               });
-              if (!response.data.length) {
-                core.info(`No pull request found for commit ${sha}`);
-                return;
+              
+              if (response.data.length > 0) {
+                pr = response.data[0];
+              } else {
+                // If no PR found, try to find recently merged PRs and match by merge commit
+                // This handles cases where the API hasn't indexed the merge commit yet
+                const recentPRs = await github.rest.pulls.list({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  state: 'closed',
+                  sort: 'updated',
+                  direction: 'desc',
+                  per_page: 10,
+                });
+                
+                // Find PR that was merged with this commit SHA
+                for (const candidatePR of recentPRs.data) {
+                  if (candidatePR.merge_commit_sha === sha) {
+                    pr = candidatePR;
+                    break;
+                  }
+                }
               }
-              const pr = response.data[0];
-              const labels = pr.labels.map((label) => label.name);
-              core.setOutput('labels', JSON.stringify(labels));
-              core.setOutput('merge_sha', pr.merge_commit_sha || sha);
-              core.setOutput('number', String(pr.number));
-              core.setOutput('has_pr', 'true');
-              core.info(`Using labels from PR #${pr.number}: ${labels.join(', ')}`);
+              
+              if (pr) {
+                const labels = pr.labels.map((label) => label.name);
+                core.setOutput('labels', JSON.stringify(labels));
+                core.setOutput('merge_sha', pr.merge_commit_sha || sha);
+                core.setOutput('number', String(pr.number));
+                core.setOutput('has_pr', 'true');
+                core.info(`Using labels from PR #${pr.number}: ${labels.join(', ')}`);
+              } else {
+                core.info(`No pull request found for commit ${sha}`);
+              }
             } catch (error) {
               core.warning(`Unable to fetch PR metadata: ${error.message}`);
             }
