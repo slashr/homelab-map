@@ -1,3 +1,6 @@
+/**
+ * @jest-environment jsdom
+ */
 import { getCharacterFromNodeName, getCharacterImage, getCharacterQuote } from './StatsPanel';
 
 describe('StatsPanel utility functions', () => {
