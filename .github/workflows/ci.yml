@@ -33,7 +33,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r aggregator/requirements.txt
-          pip install pytest anyio
 
       - name: Run test suite
-        run: pytest aggregator/tests
+        working-directory: aggregator
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python -m pytest tests/ -v

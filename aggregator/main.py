@@ -42,6 +42,8 @@ nodes_data: Dict[str, dict] = {}
 connections_data: Dict[str, list] = {}  # Key: source_node, Value: list of connections
 NODE_TIMEOUT_ENV_VAR = "NODE_TIMEOUT_SECONDS"
 DEFAULT_NODE_TIMEOUT_SECONDS = 120
+CLEANUP_GRACE_PERIOD_ENV_VAR = "CLEANUP_GRACE_PERIOD_SECONDS"
+DEFAULT_CLEANUP_GRACE_PERIOD_SECONDS = 86400  # 24 hours
 
 
 def _load_node_timeout() -> int:
@@ -73,6 +75,77 @@ def _load_node_timeout() -> int:
 NODE_TIMEOUT = _load_node_timeout()
 
 
+def _load_cleanup_grace_period() -> int:
+    """Resolve the cleanup grace period from the environment with a safe fallback."""
+    raw_value = os.getenv(CLEANUP_GRACE_PERIOD_ENV_VAR)
+    if raw_value is None:
+        return DEFAULT_CLEANUP_GRACE_PERIOD_SECONDS
+
+    try:
+        value = int(raw_value)
+    except ValueError:
+        logger.warning(
+            "CLEANUP_GRACE_PERIOD_SECONDS=%s is not a valid integer; falling back to %ss",
+            raw_value,
+            DEFAULT_CLEANUP_GRACE_PERIOD_SECONDS,
+        )
+        return DEFAULT_CLEANUP_GRACE_PERIOD_SECONDS
+
+    if value <= 0:
+        logger.warning(
+            "CLEANUP_GRACE_PERIOD_SECONDS must be positive; falling back to %ss",
+            DEFAULT_CLEANUP_GRACE_PERIOD_SECONDS,
+        )
+        return DEFAULT_CLEANUP_GRACE_PERIOD_SECONDS
+
+    return value
+
+
+CLEANUP_GRACE_PERIOD = _load_cleanup_grace_period()
+
+
+def _cleanup_stale_nodes():
+    """Remove nodes that haven't been seen in grace period"""
+    current_time = time.time()
+    cutoff_time = current_time - (NODE_TIMEOUT + CLEANUP_GRACE_PERIOD)
+    
+    nodes_to_remove = []
+    for node_name, node_data in nodes_data.items():
+        last_seen = node_data.get('received_at', node_data.get('timestamp', 0))
+        if last_seen < cutoff_time:
+            nodes_to_remove.append(node_name)
+    
+    for node_name in nodes_to_remove:
+        del nodes_data[node_name]
+        connections_data.pop(node_name, None)
+        # Also remove connections where this node is the target
+        for source_node in list(connections_data.keys()):
+            connections = connections_data[source_node]
+            filtered_connections = []
+            for conn in connections:
+                # Convert Connection object to dict if needed
+                if hasattr(conn, 'model_dump'):
+                    conn_dict = conn.model_dump()
+                elif isinstance(conn, dict):
+                    conn_dict = conn
+                else:
+                    conn_dict = dict(conn)
+                
+                # Keep connection if target is not the node being removed
+                if conn_dict.get('target_node') != node_name:
+                    filtered_connections.append(conn)
+            
+            if filtered_connections:
+                connections_data[source_node] = filtered_connections
+            else:
+                # Remove source node entry if no connections remain
+                connections_data.pop(source_node, None)
+        logger.info(f"Cleaned up stale node: {node_name}")
+    
+    if nodes_to_remove:
+        logger.info(f"Cleaned up {len(nodes_to_remove)} stale node(s)")
+
+
 class Connection(BaseModel):
     """Network connection data between nodes"""
     target_node: str
@@ -97,6 +170,7 @@ class NodeData(BaseModel):
     lon: Optional[float] = None
     location: Optional[str] = None
     provider: Optional[str] = None
+    location_source: Optional[str] = None
     cpu_percent: Optional[float] = None
     memory_percent: Optional[float] = None
     disk_percent: Optional[float] = None
@@ -145,6 +219,40 @@ async def receive_node_data(node: NodeData):
         node_dict = node.model_dump()
         node_dict['received_at'] = time.time()
         
+        # Check for node replacement (same name, different identifiers)
+        if node.name in nodes_data:
+            existing_node = nodes_data[node.name]
+            existing_ip = existing_node.get('internal_ip')
+            existing_hostname = existing_node.get('hostname')
+            existing_kubelet = existing_node.get('kubelet_version')
+            
+            new_ip = node_dict.get('internal_ip')
+            new_hostname = node_dict.get('hostname')
+            new_kubelet = node_dict.get('kubelet_version')
+            
+            # Detect replacement if key identifiers differ
+            is_replacement = False
+            if existing_ip and new_ip and existing_ip != new_ip:
+                is_replacement = True
+            elif existing_hostname and new_hostname and existing_hostname != new_hostname:
+                is_replacement = True
+            elif existing_kubelet and new_kubelet and existing_kubelet != new_kubelet:
+                is_replacement = True
+            
+            if is_replacement:
+                logger.info(
+                    f"Node replacement detected for {node.name}: "
+                    f"IP {existing_ip} -> {new_ip}, "
+                    f"hostname {existing_hostname} -> {new_hostname}"
+                )
+                # Preserve location data if available, otherwise let geolocation update it
+                if existing_node.get('lat') and not node_dict.get('lat'):
+                    node_dict['lat'] = existing_node.get('lat')
+                if existing_node.get('lon') and not node_dict.get('lon'):
+                    node_dict['lon'] = existing_node.get('lon')
+                if existing_node.get('location') and not node_dict.get('location'):
+                    node_dict['location'] = existing_node.get('location')
+        
         # Store node data
         nodes_data[node.name] = node_dict
         
@@ -170,6 +278,9 @@ async def receive_node_data(node: NodeData):
 async def get_all_nodes():
     """Get status of all nodes for frontend"""
     try:
+        # Clean up stale nodes before returning data
+        _cleanup_stale_nodes()
+        
         current_time = time.time()
         nodes_status = []
         

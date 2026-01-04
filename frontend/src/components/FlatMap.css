@@ -52,8 +52,9 @@
   transition: transform 0.2s ease;
 }
 
+/* Scale is now applied via SVG transform attribute, not CSS transform */
 .node-group.selected {
-  transform: scale(1.12);
+  /* Scale handled in SVG transform to avoid conflicts */
 }
 
 .connection-line {

@@ -37,6 +37,28 @@ services:
     networks:
       - homelab-map
 
+  # Optional agent service for local testing
+  # Uncomment to test the full stack locally
+  # agent:
+  #   build:
+  #     context: ./agent
+  #     dockerfile: Dockerfile
+  #   container_name: homelab-map-agent
+  #   environment:
+  #     - AGGREGATOR_URL=http://aggregator:8000
+  #     - NODE_NAME=local-test-node
+  #     - HOME_CITY=Local Test
+  #     - HOME_LAT=0.0
+  #     - HOME_LON=0.0
+  #     - ENABLE_AUTO_GEOLOCATION=true
+  #   depends_on:
+  #     - aggregator
+  #   restart: unless-stopped
+  #   networks:
+  #     - homelab-map
+  #   # Note: Agent requires Kubernetes API access, so this won't work fully
+  #   # without k3s. Use for testing aggregator/frontend integration only.
+
 networks:
   homelab-map:
     driver: bridge

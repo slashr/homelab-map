@@ -26,6 +26,10 @@ AGGREGATOR_URL = os.getenv('AGGREGATOR_URL', 'http://homelab-map-aggregator:8000
 REPORT_INTERVAL = int(os.getenv('REPORT_INTERVAL', '30'))  # seconds
 NODE_NAME = os.getenv('NODE_NAME', socket.gethostname())
 NETWORK_COUNTER_SNAPSHOT = None
+ENABLE_AUTO_GEOLOCATION = os.getenv('ENABLE_AUTO_GEOLOCATION', 'true').lower() == 'true'
+
+# Cache for geolocation results (key: node_name, value: location dict)
+_geolocation_cache: dict = {}
 
 # =============================================================================
 # CONFIGURATION: Update your home location here
@@ -114,7 +118,7 @@ CLOUD_LOCATIONS = {
     },
 }
 
-# Node location mapping
+# Node location mapping (manual override - highest priority)
 NODE_LOCATIONS = {
     # Raspberry Pi nodes (at home)
     'michael-pi': {**HOME_LOCATION, 'location': f"{HOME_LOCATION['city']} (Home)", 'provider': 'raspberry-pi'},
@@ -129,6 +133,138 @@ NODE_LOCATIONS = {
     # GCP nodes (Iowa datacenter)
     'toby-gcp1': {**CLOUD_LOCATIONS['gcp'], 'provider': 'gcp'},
 }
+
+
+def _detect_oracle_cloud_location() -> Optional[dict]:
+    """Detect Oracle Cloud instance location from metadata service"""
+    try:
+        response = requests.get(
+            'http://169.254.169.254/opc/v2/instance/',
+            headers={'Authorization': 'Bearer Oracle'},
+            timeout=2
+        )
+        if response.status_code == 200:
+            data = response.json()
+            region = data.get('region', '')
+            # Map Oracle regions to approximate coordinates
+            # Default to US-West (San Jose) if region not recognized
+            if 'us-' in region.lower() or 'uswest' in region.lower():
+                return {**CLOUD_LOCATIONS['oracle'], 'provider': 'oracle', 'location_source': 'cloud_metadata'}
+    except Exception:
+        pass
+    return None
+
+
+def _detect_gcp_location() -> Optional[dict]:
+    """Detect GCP instance location from metadata service"""
+    try:
+        response = requests.get(
+            'http://metadata.google.internal/computeMetadata/v1/instance/zone',
+            headers={'Metadata-Flavor': 'Google'},
+            timeout=2
+        )
+        if response.status_code == 200:
+            zone = response.text.strip()
+            # Map GCP zones to approximate coordinates
+            # Default to us-central1 (Iowa) if zone not recognized
+            if 'us-central' in zone.lower():
+                return {**CLOUD_LOCATIONS['gcp'], 'provider': 'gcp', 'location_source': 'cloud_metadata'}
+            # Could add more zone mappings here
+    except Exception:
+        pass
+    return None
+
+
+def _detect_aws_location() -> Optional[dict]:
+    """Detect AWS instance location from metadata service"""
+    try:
+        response = requests.get(
+            'http://169.254.169.254/latest/meta-data/placement/availability-zone',
+            timeout=2
+        )
+        if response.status_code == 200:
+            az = response.text.strip()
+            # Map AWS regions to approximate coordinates
+            # This is a simplified mapping - could be expanded
+            region = az[:-1] if len(az) > 1 else az  # Remove AZ suffix (e.g., us-east-1a -> us-east-1)
+            # Default coordinates for common AWS regions
+            aws_regions = {
+                'us-east-1': {'lat': 39.0438, 'lon': -77.4874, 'location': 'N. Virginia, USA (AWS)'},
+                'us-west-1': {'lat': 37.3382, 'lon': -121.8863, 'location': 'N. California, USA (AWS)'},
+                'us-west-2': {'lat': 45.5152, 'lon': -122.6784, 'location': 'Oregon, USA (AWS)'},
+                'eu-west-1': {'lat': 53.3498, 'lon': -6.2603, 'location': 'Ireland (AWS)'},
+            }
+            if region in aws_regions:
+                return {**aws_regions[region], 'provider': 'aws', 'location_source': 'cloud_metadata'}
+    except Exception:
+        pass
+    return None
+
+
+def _detect_ip_geolocation(ip: str) -> Optional[dict]:
+    """Detect location from IP address using ip-api.com"""
+    try:
+        response = requests.get(
+            f'http://ip-api.com/json/{ip}?fields=status,lat,lon,city,country',
+            timeout=5
+        )
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('status') == 'success' and data.get('lat') and data.get('lon'):
+                return {
+                    'lat': data['lat'],
+                    'lon': data['lon'],
+                    'location': f"{data.get('city', '')}, {data.get('country', '')}".strip(', '),
+                    'location_source': 'ip_api'
+                }
+    except Exception as e:
+        logger.debug(f"IP geolocation API failed for {ip}: {e}")
+    return None
+
+
+def _detect_node_location(node_name: str, external_ip: Optional[str] = None, internal_ip: Optional[str] = None) -> Optional[dict]:
+    """Detect node location using multiple methods with priority order"""
+    # Check cache first
+    if node_name in _geolocation_cache:
+        return _geolocation_cache[node_name]
+    
+    # Priority 1: Manual override (NODE_LOCATIONS dict)
+    if node_name in NODE_LOCATIONS:
+        location = NODE_LOCATIONS[node_name].copy()
+        location['location_source'] = 'manual'
+        _geolocation_cache[node_name] = location
+        return location
+    
+    if not ENABLE_AUTO_GEOLOCATION:
+        return None
+    
+    # Priority 2: Cloud provider metadata
+    location = _detect_oracle_cloud_location()
+    if location:
+        _geolocation_cache[node_name] = location
+        return location
+    
+    location = _detect_gcp_location()
+    if location:
+        _geolocation_cache[node_name] = location
+        return location
+    
+    location = _detect_aws_location()
+    if location:
+        _geolocation_cache[node_name] = location
+        return location
+    
+    # Priority 3: IP geolocation API
+    # Try external IP first, then internal IP if external is not available
+    ip_to_try = external_ip or internal_ip
+    if ip_to_try:
+        location = _detect_ip_geolocation(ip_to_try)
+        if location:
+            _geolocation_cache[node_name] = location
+            return location
+    
+    # No location found
+    return None
 
 
 def get_node_info():
@@ -156,14 +292,26 @@ def get_node_info():
             'container_runtime': node.status.node_info.container_runtime_version,
         }
         
-        # Add location data if available with slight offset for co-located nodes
+        # Add location data - try manual override first, then auto-detect
+        location = None
         if NODE_NAME in NODE_LOCATIONS:
             location = NODE_LOCATIONS[NODE_NAME].copy()
+            location['location_source'] = 'manual'
+        else:
+            # Auto-detect location
+            location = _detect_node_location(
+                NODE_NAME,
+                external_ip=node_info.get('external_ip'),
+                internal_ip=node_info.get('internal_ip')
+            )
+        
+        if location:
             # Add small offset based on node name hash to separate co-located nodes
             # ~0.001 degree = ~100 meters, use smaller offset for visual clustering
-            offset = hash(NODE_NAME) % 10 * 0.0001  # 0-10 meters offset
-            location['lat'] += offset
-            location['lon'] += offset
+            if 'lat' in location and 'lon' in location:
+                offset = hash(NODE_NAME) % 10 * 0.0001  # 0-10 meters offset
+                location['lat'] = location['lat'] + offset
+                location['lon'] = location['lon'] + offset
             node_info.update(location)
         
         # Add system metrics

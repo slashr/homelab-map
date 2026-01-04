@@ -62,21 +62,35 @@ A real-time visualization tool for monitoring your k3s homelab cluster across mu
 
 ### Configuration
 
-- `NODE_TIMEOUT_SECONDS` (aggregator): Number of seconds before a node is marked offline. Defaults to 120. Override it before starting the API service if your agents report infrequently:
+**Aggregator Environment Variables:**
+- `NODE_TIMEOUT_SECONDS`: Number of seconds before a node is marked offline. Defaults to 120.
+- `CLEANUP_GRACE_PERIOD_SECONDS`: Number of seconds after timeout before stale nodes are removed. Defaults to 86400 (24 hours).
 
   ```bash
   export NODE_TIMEOUT_SECONDS=300
+  export CLEANUP_GRACE_PERIOD_SECONDS=86400
   cd aggregator
   uvicorn main:app --reload
   ```
 
-- `HOME_CITY`, `HOME_LAT`, `HOME_LON` (agent): Override the default Berlin home marker for your on-prem nodes. Set these before building or deploying the agent container:
+**Agent Environment Variables:**
+- `HOME_CITY`, `HOME_LAT`, `HOME_LON`: Override the default Berlin home marker for your on-prem nodes.
+- `ENABLE_AUTO_GEOLOCATION`: Enable automatic geolocation detection (default: true). Set to 'false' to disable.
 
   ```bash
   export HOME_CITY="Austin, TX"
   export HOME_LAT=30.2672
   export HOME_LON=-97.7431
+  export ENABLE_AUTO_GEOLOCATION=true
   ```
+
+**Automatic Geolocation:**
+The agent automatically detects node locations using:
+1. Manual override (NODE_LOCATIONS dict in agent.py) - highest priority
+2. Cloud provider metadata (Oracle Cloud, GCP, AWS)
+3. IP geolocation API (ip-api.com) - fallback for other nodes
+
+Nodes not in the manual mapping will be automatically geolocated on first run. Results are cached to avoid repeated API calls.
 
 ### Deployment
 
@@ -97,25 +111,100 @@ See [SETUP.md](SETUP.md) for detailed instructions.
 
 ## Development
 
-### Agent
+### Local Development
+
+The easiest way to develop and test locally is using the provided development script:
+
 ```bash
-cd agent
-pip install -r requirements.txt
-python agent.py
+# Run all services with docker-compose
+./scripts/dev.sh docker
+
+# Or run services individually for hot reload
+./scripts/dev.sh aggregator  # Terminal 1
+./scripts/dev.sh frontend    # Terminal 2 (requires aggregator running)
 ```
 
-### Aggregator
+#### Using Docker Compose
+
+Start the full stack (aggregator + frontend) with docker-compose:
+
+```bash
+docker-compose up --build
+```
+
+- Frontend: http://localhost:3000
+- Aggregator API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
+
+#### Individual Service Development
+
+For hot reload during development, run services individually:
+
+**Aggregator:**
 ```bash
 cd aggregator
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
-### Frontend
+**Frontend:**
 ```bash
 cd frontend
 npm install
-npm start
+REACT_APP_AGGREGATOR_URL=http://localhost:8000 npm start
+```
+
+**Agent:**
+```bash
+cd agent
+pip install -r requirements.txt
+# Note: Agent requires Kubernetes API access, so this only works in-cluster
+# For local testing, use mock data in frontend instead
+python agent.py
+```
+
+#### Testing with Mock Data
+
+The frontend supports mock data for development without a running aggregator:
+
+```bash
+cd frontend
+REACT_APP_USE_MOCK_DATA=true npm start
+```
+
+Or with docker-compose:
+```bash
+REACT_APP_USE_MOCK_DATA=true docker-compose up frontend
+```
+
+#### Manual API Testing
+
+You can manually add test nodes via the aggregator API:
+
+```bash
+# Add a test node
+curl -X POST http://localhost:8000/api/nodes \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "test-node",
+    "hostname": "test.example.com",
+    "internal_ip": "10.0.0.1",
+    "external_ip": "1.2.3.4",
+    "lat": 37.7749,
+    "lon": -122.4194,
+    "location": "San Francisco, CA",
+    "status": "online",
+    "cpu_percent": 25.5,
+    "memory_percent": 60.0
+  }'
+
+# View all nodes
+curl http://localhost:8000/api/nodes
+
+# View stats
+curl http://localhost:8000/api/stats
 ```
 
 ## Automated Releases
