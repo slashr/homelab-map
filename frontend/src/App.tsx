@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
-import ClusterMap from './components/ClusterMap';
 import FlatMap from './components/FlatMap';
 import StatsPanel from './components/StatsPanel';
 import { Node, ClusterStats, Connection } from './types';
@@ -28,12 +27,6 @@ function App() {
     return saved !== null ? saved === 'true' : false; // Default to light mode
   });
   
-  // Map mode: 'globe' or 'flat'
-  const [mapMode, setMapMode] = useState<'globe' | 'flat'>(() => {
-    const saved = localStorage.getItem('mapMode');
-    return (saved === 'flat' || saved === 'globe') ? saved : 'globe';
-  });
-  
   // Sidebar visibility for mobile - start open on desktop, closed on mobile
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     return window.innerWidth > 768;
@@ -54,11 +47,6 @@ function App() {
   useEffect(() => {
     localStorage.setItem('darkMode', darkMode.toString());
   }, [darkMode]);
-
-  // Save map mode preference when it changes
-  useEffect(() => {
-    localStorage.setItem('mapMode', mapMode);
-  }, [mapMode]);
 
   const fetchData = async () => {
     // Use mock data if enabled or if aggregator is unavailable
@@ -152,14 +140,6 @@ function App() {
           </div>
           <div className="header-right">
             <button 
-              className="map-mode-toggle"
-              onClick={() => setMapMode(mapMode === 'globe' ? 'flat' : 'globe')}
-              aria-label="Toggle map mode"
-              title={mapMode === 'globe' ? 'Switch to flat map' : 'Switch to globe'}
-            >
-              {mapMode === 'globe' ? '🗺️' : '🌍'}
-            </button>
-            <button 
               className="theme-toggle"
               onClick={() => setDarkMode(!darkMode)}
               aria-label="Toggle theme"
@@ -192,27 +172,15 @@ function App() {
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
         />
-        {mapMode === 'globe' ? (
-          <ClusterMap
-            nodes={nodes}
-            connections={connections}
-            darkMode={darkMode}
-            selectedNodeId={selection?.id || null}
-            selectionToken={selection?.token || 0}
-            onNodeSelect={handleNodeSelect}
-            onNodeDeselect={handleNodeDeselect}
-          />
-        ) : (
-          <FlatMap
-            nodes={nodes}
-            connections={connections}
-            darkMode={darkMode}
-            selectedNodeId={selection?.id || null}
-            selectionToken={selection?.token || 0}
-            onNodeSelect={handleNodeSelect}
-            onNodeDeselect={handleNodeDeselect}
-          />
-        )}
+        <FlatMap
+          nodes={nodes}
+          connections={connections}
+          darkMode={darkMode}
+          selectedNodeId={selection?.id || null}
+          selectionToken={selection?.token || 0}
+          onNodeSelect={handleNodeSelect}
+          onNodeDeselect={handleNodeDeselect}
+        />
       </div>
     </div>
   );
