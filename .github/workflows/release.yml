@@ -15,6 +15,11 @@ on:
           - patch
           - minor
           - major
+      services:
+        description: "Services to build (comma-separated: agent,aggregator,frontend) or 'all' for all services"
+        default: all
+        required: false
+        type: string
 
 env:
   REGISTRY: ${{ vars.REGISTRY != '' && vars.REGISTRY || 'docker.io/dawker' }}
@@ -192,6 +197,7 @@ jobs:
         id: service_matrix
         env:
           EVENT_NAME: ${{ github.event_name }}
+          MANUAL_SERVICES: ${{ github.event.inputs.services || 'all' }}
           AGENT_CHANGED: ${{ steps.service_filter.outputs.agent }}
           AGGREGATOR_CHANGED: ${{ steps.service_filter.outputs.aggregator }}
           FRONTEND_CHANGED: ${{ steps.service_filter.outputs.frontend }}
@@ -203,7 +209,17 @@ jobs:
           event = os.environ.get("EVENT_NAME")
           services = []
           if event == "workflow_dispatch":
-              services = ["agent", "aggregator", "frontend"]
+              manual_services = os.environ.get("MANUAL_SERVICES", "all").strip().lower()
+              if manual_services == "all":
+                  services = ["agent", "aggregator", "frontend"]
+              else:
+                  # Parse comma-separated list
+                  services = [s.strip() for s in manual_services.split(",") if s.strip()]
+                  # Validate services
+                  valid_services = {"agent", "aggregator", "frontend"}
+                  services = [s for s in services if s in valid_services]
+                  if not services:
+                      services = ["agent", "aggregator", "frontend"]  # Default to all if invalid
           else:
               mapping = {
                   "agent": os.environ.get("AGENT_CHANGED"),
@@ -230,7 +246,10 @@ jobs:
           set -euo pipefail
           enabled="${RELEASE_ENABLED:-false}"
           count="${SERVICE_COUNT:-0}"
-          if [[ "${EVENT_NAME}" != "workflow_dispatch" && "${enabled}" == "true" && "${count}" == "0" ]]; then
+          # For manual triggers, always allow if services are specified
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" && "${count}" -gt 0 ]]; then
+            enabled="true"
+          elif [[ "${EVENT_NAME}" != "workflow_dispatch" && "${enabled}" == "true" && "${count}" == "0" ]]; then
             enabled="false"
             echo "Release skipped: no service directories changed."
           fi
