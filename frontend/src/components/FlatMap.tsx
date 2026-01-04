@@ -96,7 +96,6 @@ const FlatMap: React.FC<FlatMapProps> = ({
   const [mapSize, setMapSize] = React.useState<{ width: number; height: number } | null>(null);
   const [hoveredArc, setHoveredArc] = React.useState<FlatMapConnectionDatum | null>(null);
   const [tooltipPosition, setTooltipPosition] = React.useState<{ x: number; y: number } | null>(null);
-  const [nodeCardPosition, setNodeCardPosition] = React.useState<{ x: number; y: number } | null>(null);
   const [zoomTransform, setZoomTransform] = React.useState<ZoomTransform | null>(null);
   const mousePositionRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const animationFrameRef = useRef<number>();
@@ -707,73 +706,12 @@ const FlatMap: React.FC<FlatMapProps> = ({
       .attr('r', 24);
   }, [path, projection, mapSize, countryPolygons, flatMapConnections, nodesWithLocation, selectedNodeId, darkMode, onNodeSelect, zoomTransform]);
 
-  const selectedNode = useMemo(
-    () => nodes.find((node) => node.name === selectedNodeId) ?? null,
-    [nodes, selectedNodeId]
-  );
-
-  // Calculate node position for info card (accounting for zoom transform)
-  useEffect(() => {
-    if (!selectedNodeId || !projection || !containerRef.current || !svgRef.current) {
-      setNodeCardPosition(null);
-      return;
-    }
-
-    const selectedNodeData = nodesWithLocation.find((node) => node.name === selectedNodeId);
-    if (!selectedNodeData) {
-      setNodeCardPosition(null);
-      return;
-    }
-
-    const coords = projection([selectedNodeData.lng, selectedNodeData.lat]);
-    if (!coords || !Array.isArray(coords) || coords.length < 2) {
-      setNodeCardPosition(null);
-      return;
-    }
-
-    // Get container and SVG bounding boxes to calculate relative position
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const svgRect = svgRef.current.getBoundingClientRect();
-    
-    // Calculate position in SVG coordinates (with zoom transform applied)
-    let svgX = coords[0];
-    let svgY = coords[1];
-    if (zoomTransform) {
-      svgX = zoomTransform.applyX(coords[0]);
-      svgY = zoomTransform.applyY(coords[1]);
-    }
-    
-    // Convert SVG coordinates to container-relative coordinates
-    // Account for the SVG's position within the container
-    const svgOffsetX = svgRect.left - containerRect.left;
-    const svgOffsetY = svgRect.top - containerRect.top;
-    
-    // Final position relative to container
-    const containerX = svgX + svgOffsetX;
-    const containerY = svgY + svgOffsetY;
-    
-    // Validate coordinates are reasonable (within container bounds with some margin)
-    if (isNaN(containerX) || isNaN(containerY) || 
-        containerX < -1000 || containerX > containerRect.width + 1000 ||
-        containerY < -1000 || containerY > containerRect.height + 1000) {
-      // Invalid coordinates - don't show card
-      setNodeCardPosition(null);
-      return;
-    }
-    
-    setNodeCardPosition({
-      x: containerX,
-      y: containerY - 10, // Position above the node
-    });
-  }, [selectedNodeId, projection, nodesWithLocation, zoomTransform]);
-
   const handleMapClick = useCallback((event: React.MouseEvent) => {
     const target = event.target as Element;
-    // Don't deselect if clicking on a node, connection line, or the info card
+    // Don't deselect if clicking on a node or connection line
     if (
       target.closest('.node-group') ||
       target.closest('.connection-line') ||
-      target.closest('.node-info-card') ||
       target.closest('.labels')
     ) {
       return;
@@ -852,102 +790,6 @@ const FlatMap: React.FC<FlatMapProps> = ({
                     : 'Poor'}
                 </strong>
               </div>
-            </div>
-          </div>
-        )}
-
-        {selectedNode && nodeCardPosition && (
-          <div 
-            className={`node-info-card node-info-card--flat ${darkMode ? 'dark' : 'light'}`}
-            style={{
-              left: `${nodeCardPosition.x}px`,
-              top: `${nodeCardPosition.y}px`,
-              transform: 'translate(-50%, -100%)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="node-info-card__header">
-              <div>
-                <h3>{selectedNode.name}</h3>
-                {selectedNode.location && <p>{selectedNode.location}</p>}
-              </div>
-              <div className="node-info-card__header-right">
-                <span className={`status-pill status-${selectedNode.status}`}>
-                  {selectedNode.status}
-                </span>
-                <button
-                  className="node-info-card__close"
-                  onClick={onNodeDeselect}
-                  aria-label="Close node details"
-                  title="Close"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-
-            <div className="node-info-card__body">
-              {selectedNode.provider && (
-                <div className="info-row">
-                  <span>Provider</span>
-                  <strong>{selectedNode.provider}</strong>
-                </div>
-              )}
-              {selectedNode.external_ip && (
-                <div className="info-row">
-                  <span>External IP</span>
-                  <code>{selectedNode.external_ip}</code>
-                </div>
-              )}
-              {selectedNode.internal_ip && (
-                <div className="info-row">
-                  <span>Internal IP</span>
-                  <code>{selectedNode.internal_ip}</code>
-                </div>
-              )}
-              <div className="metrics-grid">
-                <div>
-                  <span>CPU</span>
-                  <strong>
-                    {selectedNode.cpu_percent != null ? `${selectedNode.cpu_percent.toFixed(1)}%` : '—'}
-                  </strong>
-                </div>
-                <div>
-                  <span>Memory</span>
-                  <strong>
-                    {selectedNode.memory_percent != null ? `${selectedNode.memory_percent.toFixed(1)}%` : '—'}
-                  </strong>
-                </div>
-                <div>
-                  <span>Disk</span>
-                  <strong>
-                    {selectedNode.disk_percent != null ? `${selectedNode.disk_percent.toFixed(1)}%` : '—'}
-                  </strong>
-                </div>
-              </div>
-
-              {(selectedNode.network_tx_bytes_per_sec != null ||
-                selectedNode.network_rx_bytes_per_sec != null) && (
-                <div className="info-row">
-                  <span>Network</span>
-                  <strong>
-                    ⬆ {formatBytesPerSecond(selectedNode.network_tx_bytes_per_sec)} · ⬇{' '}
-                    {formatBytesPerSecond(selectedNode.network_rx_bytes_per_sec)}
-                  </strong>
-                </div>
-              )}
-
-              <div className="info-row">
-                <span>Last seen</span>
-                <strong>{selectedNode.last_seen}</strong>
-              </div>
-
-              {selectedNode.kubelet_version && (
-                <div className="info-row">
-                  <span>Kubelet</span>
-                  <code>{selectedNode.kubelet_version}</code>
-                </div>
-              )}
             </div>
           </div>
         )}

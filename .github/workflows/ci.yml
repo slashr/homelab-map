@@ -17,7 +17,7 @@ jobs:
       - name: Run actionlint
         uses: rhysd/actionlint@v1.7.5
 
-  tests:
+  backend-tests:
     needs: workflow-lint
     runs-on: ubuntu-latest
     steps:
@@ -34,8 +34,28 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r aggregator/requirements.txt
 
-      - name: Run test suite
+      - name: Run backend test suite
         working-directory: aggregator
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: python -m pytest tests/ -v
+
+  frontend-tests:
+    needs: workflow-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run frontend test suite
+        working-directory: frontend
+        run: npm test -- --watchAll=false --coverage=false

@@ -5,7 +5,6 @@ import countriesTopo from 'world-atlas/countries-110m.json';
 import type { FeatureCollection, Geometry } from 'geojson';
 import { capitalLabels, CapitalLabel } from '../data/capitals';
 import { Node, Connection } from '../types';
-import { formatBytesPerSecond } from '../utils/format';
 import * as THREE from 'three';
 import './ClusterMap.css';
 
@@ -100,7 +99,6 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
   const [globeSize, setGlobeSize] = React.useState<{ width: number; height: number } | null>(null);
   const [hoveredArc, setHoveredArc] = React.useState<GlobeConnectionDatum | null>(null);
   const [tooltipPosition, setTooltipPosition] = React.useState<{ x: number; y: number } | null>(null);
-  const [nodeCardPosition, setNodeCardPosition] = React.useState<{ x: number; y: number } | null>(null);
   const mousePositionRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Track mouse position for tooltip
@@ -210,11 +208,6 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
       .filter((value): value is GlobeConnectionDatum => Boolean(value));
   }, [connections, nodeLookup, darkMode]);
 
-  const selectedNode = useMemo(
-    () => nodes.find((node) => node.name === selectedNodeId) ?? null,
-    [nodes, selectedNodeId]
-  );
-
   const focusTarget = useMemo(
     () => nodesWithLocation.find((node) => node.name === selectedNodeId) ?? null,
     [nodesWithLocation, selectedNodeId]
@@ -298,64 +291,6 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
     globeRef.current.pointOfView({ lat: focusLat, lng: focusLng, altitude: 0.5 }, 900);
   }, [selectedNodeId, selectionToken, focusLat, focusLng]);
 
-  // Calculate node position for info card by finding the HTML marker element
-  useEffect(() => {
-    if (!selectedNodeId || !globeWrapperRef.current) {
-      setNodeCardPosition(null);
-      return;
-    }
-
-    const updatePosition = () => {
-      if (!globeWrapperRef.current) {
-        return;
-      }
-
-      // Find the HTML marker element for the selected node
-      const markers = globeWrapperRef.current.querySelectorAll('.globe-node');
-      const selectedMarker = Array.from(markers).find((marker) => {
-        const title = marker.getAttribute('title');
-        return title === selectedNodeId;
-      });
-
-      if (selectedMarker && globeWrapperRef.current) {
-        const markerRect = selectedMarker.getBoundingClientRect();
-        const wrapperRect = globeWrapperRef.current.getBoundingClientRect();
-        
-        // Check if marker is actually visible (has valid dimensions and is in viewport)
-        // Allow partial visibility - just check that it's not completely off-screen
-        const isVisible = 
-          markerRect.width > 0 && 
-          markerRect.height > 0 &&
-          markerRect.bottom > wrapperRect.top &&
-          markerRect.top < wrapperRect.bottom &&
-          markerRect.right > wrapperRect.left &&
-          markerRect.left < wrapperRect.right;
-        
-        if (isVisible) {
-          setNodeCardPosition({
-            x: markerRect.left + markerRect.width / 2 - wrapperRect.left,
-            y: markerRect.top - wrapperRect.top - 10, // Position above the marker with small offset
-          });
-        } else {
-          // Marker not visible yet, keep trying
-          setNodeCardPosition(null);
-        }
-      } else {
-        setNodeCardPosition(null);
-      }
-    };
-
-    // Wait for globe rotation to complete (900ms animation + buffer) before initial positioning
-    const timeout = setTimeout(updatePosition, 1000);
-    
-    // Update on interval for smooth tracking as globe rotates
-    const interval = setInterval(updatePosition, 100);
-    
-    return () => {
-      clearTimeout(timeout);
-      clearInterval(interval);
-    };
-  }, [selectedNodeId, selectionToken]);
 
   const renderMarker = useCallback(
     (nodeDatum: object) => {
@@ -515,102 +450,6 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
           </div>
         )}
 
-        {selectedNode && nodeCardPosition && (
-          <div 
-            className={`node-info-card node-info-card--globe ${darkMode ? 'dark' : 'light'}`}
-            style={{
-              position: 'absolute',
-              left: `${nodeCardPosition.x}px`,
-              top: `${nodeCardPosition.y}px`,
-              transform: 'translate(-50%, -100%)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="node-info-card__header">
-              <div>
-                <h3>{selectedNode.name}</h3>
-                {selectedNode.location && <p>{selectedNode.location}</p>}
-              </div>
-              <div className="node-info-card__header-right">
-                <span className={`status-pill status-${selectedNode.status}`}>
-                  {selectedNode.status}
-                </span>
-                <button
-                  className="node-info-card__close"
-                  onClick={onNodeDeselect}
-                  aria-label="Close node details"
-                  title="Close"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-
-            <div className="node-info-card__body">
-              {selectedNode.provider && (
-                <div className="info-row">
-                  <span>Provider</span>
-                  <strong>{selectedNode.provider}</strong>
-                </div>
-              )}
-              {selectedNode.external_ip && (
-                <div className="info-row">
-                  <span>External IP</span>
-                  <code>{selectedNode.external_ip}</code>
-                </div>
-              )}
-              {selectedNode.internal_ip && (
-                <div className="info-row">
-                  <span>Internal IP</span>
-                  <code>{selectedNode.internal_ip}</code>
-                </div>
-              )}
-              <div className="metrics-grid">
-                <div>
-                  <span>CPU</span>
-                  <strong>
-                    {selectedNode.cpu_percent != null ? `${selectedNode.cpu_percent.toFixed(1)}%` : '—'}
-                  </strong>
-                </div>
-                <div>
-                  <span>Memory</span>
-                  <strong>
-                    {selectedNode.memory_percent != null ? `${selectedNode.memory_percent.toFixed(1)}%` : '—'}
-                  </strong>
-                </div>
-                <div>
-                  <span>Disk</span>
-                  <strong>
-                    {selectedNode.disk_percent != null ? `${selectedNode.disk_percent.toFixed(1)}%` : '—'}
-                  </strong>
-                </div>
-              </div>
-
-              {(selectedNode.network_tx_bytes_per_sec != null ||
-                selectedNode.network_rx_bytes_per_sec != null) && (
-                <div className="info-row">
-                  <span>Network</span>
-                  <strong>
-                    ⬆ {formatBytesPerSecond(selectedNode.network_tx_bytes_per_sec)} · ⬇{' '}
-                    {formatBytesPerSecond(selectedNode.network_rx_bytes_per_sec)}
-                  </strong>
-                </div>
-              )}
-
-              <div className="info-row">
-                <span>Last seen</span>
-                <strong>{selectedNode.last_seen}</strong>
-              </div>
-
-              {selectedNode.kubelet_version && (
-                <div className="info-row">
-                  <span>Kubelet</span>
-                  <code>{selectedNode.kubelet_version}</code>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
