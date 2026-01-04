@@ -8,7 +8,6 @@ import type { FeatureCollection, Geometry } from 'geojson';
 import { capitalLabels } from '../data/capitals';
 import { Node, Connection } from '../types';
 import './FlatMap.css';
-import './ClusterMap.css';
 
 interface FlatMapProps {
   nodes: Node[];
