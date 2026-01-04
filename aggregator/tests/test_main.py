@@ -6,7 +6,10 @@ from typing import Any, Dict, Iterable
 
 import pytest
 
-from .. import main
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import main
 
 
 @pytest.fixture()
@@ -203,3 +206,232 @@ async def test_get_all_connections_expands_connection_models() -> None:
     assert connection["source_lat"] == pytest.approx(37.7749)
     assert connection["target_lat"] == pytest.approx(40.7128)
     assert connection["latency_ms"] == pytest.approx(10.5)
+
+
+def test_load_cleanup_grace_period_default_and_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CLEANUP_GRACE_PERIOD_SECONDS env var should override the default seconds."""
+    monkeypatch.delenv(main.CLEANUP_GRACE_PERIOD_ENV_VAR, raising=False)
+    assert main._load_cleanup_grace_period() == main.DEFAULT_CLEANUP_GRACE_PERIOD_SECONDS
+
+    monkeypatch.setenv(main.CLEANUP_GRACE_PERIOD_ENV_VAR, "3600")
+    assert main._load_cleanup_grace_period() == 3600
+
+
+def test_load_cleanup_grace_period_invalid_values_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Invalid values fall back to the default."""
+    monkeypatch.setenv(main.CLEANUP_GRACE_PERIOD_ENV_VAR, "not-a-number")
+    assert main._load_cleanup_grace_period() == main.DEFAULT_CLEANUP_GRACE_PERIOD_SECONDS
+
+    monkeypatch.setenv(main.CLEANUP_GRACE_PERIOD_ENV_VAR, "-5")
+    assert main._load_cleanup_grace_period() == main.DEFAULT_CLEANUP_GRACE_PERIOD_SECONDS
+
+
+@pytest.mark.anyio
+async def test_cleanup_stale_nodes_removes_old_nodes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that stale nodes beyond grace period are removed."""
+    fixed_time = 1_700_000_000.0
+    monkeypatch.setattr(main.time, "time", lambda: fixed_time)
+    
+    # Set a short grace period for testing
+    monkeypatch.setenv(main.CLEANUP_GRACE_PERIOD_ENV_VAR, "100")
+    # Reload the grace period
+    main.CLEANUP_GRACE_PERIOD = main._load_cleanup_grace_period()
+    
+    # Add nodes with different ages
+    main.nodes_data.update(
+        {
+            "node-recent": {
+                "name": "node-recent",
+                "hostname": "node-recent",
+                "received_at": fixed_time - 30,  # Recent
+            },
+            "node-stale": {
+                "name": "node-stale",
+                "hostname": "node-stale",
+                "received_at": fixed_time - (main.NODE_TIMEOUT + 200),  # Beyond grace period
+            },
+        }
+    )
+    
+    # Add connections for stale node
+    main.connections_data["node-stale"] = [
+        main.Connection(
+            target_node="node-recent",
+            target_ip="10.0.0.2",
+            latency_ms=10.0,
+        )
+    ]
+    main.connections_data["node-recent"] = [
+        main.Connection(
+            target_node="node-stale",
+            target_ip="10.0.0.1",
+            latency_ms=10.0,
+        )
+    ]
+    
+    # Call cleanup
+    main._cleanup_stale_nodes()
+    
+    # Verify stale node is removed
+    assert "node-stale" not in main.nodes_data
+    assert "node-recent" in main.nodes_data
+    
+    # Verify connections are cleaned up
+    assert "node-stale" not in main.connections_data
+    # Connection from node-recent to node-stale should be removed
+    assert len(main.connections_data.get("node-recent", [])) == 0
+
+
+@pytest.mark.anyio
+async def test_node_replacement_detection_same_name_different_ip(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that node replacement is detected when IP changes."""
+    fixed_time = 1_700_000_000.0
+    monkeypatch.setattr(main.time, "time", lambda: fixed_time)
+    
+    # Add initial node
+    await main.receive_node_data(
+        main.NodeData(
+            name="node-1",
+            hostname="node-1.local",
+            internal_ip="10.0.0.1",
+            kubelet_version="v1.28.0",
+            lat=37.7749,
+            lon=-122.4194,
+        )
+    )
+    
+    original_received_at = main.nodes_data["node-1"]["received_at"]
+    
+    # Simulate time passing
+    monkeypatch.setattr(main.time, "time", lambda: fixed_time + 100)
+    
+    # Send data for same node name but different IP (replacement)
+    await main.receive_node_data(
+        main.NodeData(
+            name="node-1",
+            hostname="node-1.local",
+            internal_ip="10.0.0.2",  # Different IP
+            kubelet_version="v1.28.0",
+            lat=37.7749,
+            lon=-122.4194,
+        )
+    )
+    
+    # Node should still exist but with new IP
+    assert main.nodes_data["node-1"]["internal_ip"] == "10.0.0.2"
+    # Location should be preserved
+    assert main.nodes_data["node-1"]["lat"] == pytest.approx(37.7749)
+    assert main.nodes_data["node-1"]["lon"] == pytest.approx(-122.4194)
+
+
+@pytest.mark.anyio
+async def test_node_replacement_detection_same_name_different_hostname(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that node replacement is detected when hostname changes."""
+    fixed_time = 1_700_000_000.0
+    monkeypatch.setattr(main.time, "time", lambda: fixed_time)
+    
+    # Add initial node
+    await main.receive_node_data(
+        main.NodeData(
+            name="node-1",
+            hostname="node-1-old.local",
+            internal_ip="10.0.0.1",
+        )
+    )
+    
+    # Simulate time passing
+    monkeypatch.setattr(main.time, "time", lambda: fixed_time + 100)
+    
+    # Send data for same node name but different hostname (replacement)
+    await main.receive_node_data(
+        main.NodeData(
+            name="node-1",
+            hostname="node-1-new.local",  # Different hostname
+            internal_ip="10.0.0.1",
+        )
+    )
+    
+    # Node should still exist but with new hostname
+    assert main.nodes_data["node-1"]["hostname"] == "node-1-new.local"
+
+
+@pytest.mark.anyio
+async def test_node_replacement_detection_same_name_different_kubelet(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that node replacement is detected when kubelet version changes."""
+    fixed_time = 1_700_000_000.0
+    monkeypatch.setattr(main.time, "time", lambda: fixed_time)
+    
+    # Add initial node
+    await main.receive_node_data(
+        main.NodeData(
+            name="node-1",
+            hostname="node-1.local",
+            internal_ip="10.0.0.1",
+            kubelet_version="v1.27.0",
+        )
+    )
+    
+    # Simulate time passing
+    monkeypatch.setattr(main.time, "time", lambda: fixed_time + 100)
+    
+    # Send data for same node name but different kubelet version (replacement)
+    await main.receive_node_data(
+        main.NodeData(
+            name="node-1",
+            hostname="node-1.local",
+            internal_ip="10.0.0.1",
+            kubelet_version="v1.29.0",  # Different kubelet version
+        )
+    )
+    
+    # Node should still exist but with new kubelet version
+    assert main.nodes_data["node-1"]["kubelet_version"] == "v1.29.0"
+
+
+@pytest.mark.anyio
+async def test_node_replacement_preserves_location_data(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that location data is preserved during node replacement."""
+    fixed_time = 1_700_000_000.0
+    monkeypatch.setattr(main.time, "time", lambda: fixed_time)
+    
+    # Add initial node with location
+    await main.receive_node_data(
+        main.NodeData(
+            name="node-1",
+            hostname="node-1.local",
+            internal_ip="10.0.0.1",
+            lat=37.7749,
+            lon=-122.4194,
+        )
+    )
+    
+    # Simulate time passing
+    monkeypatch.setattr(main.time, "time", lambda: fixed_time + 100)
+    
+    # Send replacement node without location data
+    await main.receive_node_data(
+        main.NodeData(
+            name="node-1",
+            hostname="node-1.local",
+            internal_ip="10.0.0.2",  # Different IP (replacement)
+            # No lat/lon provided
+        )
+    )
+    
+    # Location should be preserved from original node
+    assert main.nodes_data["node-1"]["lat"] == pytest.approx(37.7749)
+    assert main.nodes_data["node-1"]["lon"] == pytest.approx(-122.4194)

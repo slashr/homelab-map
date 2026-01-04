@@ -334,7 +334,7 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
         if (isVisible) {
           setNodeCardPosition({
             x: markerRect.left + markerRect.width / 2 - wrapperRect.left,
-            y: markerRect.top - wrapperRect.top,
+            y: markerRect.top - wrapperRect.top - 10, // Position above the marker with small offset
           });
         } else {
           // Marker not visible yet, keep trying
@@ -445,11 +445,11 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
           htmlElement={renderMarker}
           arcsData={globeConnections}
           arcColor={(arc: object) => (arc as GlobeConnectionDatum).color}
-          arcStroke={1.2}
+          arcStroke={0.8}
           arcAltitude={(arc: object) => (arc as GlobeConnectionDatum).altitude}
-          arcDashLength={0.6}
-          arcDashGap={0.3}
-          arcDashAnimateTime={4000}
+          arcDashLength={0.4}
+          arcDashGap={0.2}
+          arcDashAnimateTime={3000}
           arcsTransitionDuration={0}
           arcLabel={(arc: object) => {
             const datum = arc as GlobeConnectionDatum;
@@ -515,9 +515,15 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
           </div>
         )}
 
-        {selectedNode && (
+        {selectedNode && nodeCardPosition && (
           <div 
             className={`node-info-card node-info-card--globe ${darkMode ? 'dark' : 'light'}`}
+            style={{
+              position: 'absolute',
+              left: `${nodeCardPosition.x}px`,
+              top: `${nodeCardPosition.y}px`,
+              transform: 'translate(-50%, -100%)',
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="node-info-card__header">
