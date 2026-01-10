@@ -208,12 +208,13 @@ const FlatMap: React.FC<FlatMapProps> = ({
     return geoJson.features;
   }, []);
 
-  // Handle map resize
+  // Handle map resize with debouncing to prevent excessive re-renders
   useEffect(() => {
     if (!containerRef.current) {
       return;
     }
 
+    let resizeTimeout: NodeJS.Timeout;
     const updateMapSize = () => {
       if (!containerRef.current) {
         return;
@@ -223,21 +224,35 @@ const FlatMap: React.FC<FlatMapProps> = ({
       const height = container.clientHeight;
       
       if (width > 0 && height > 0) {
-        setMapSize({ width, height });
+        setMapSize(prevSize => {
+          // Only update if size actually changed
+          if (!prevSize || prevSize.width !== width || prevSize.height !== height) {
+            return { width, height };
+          }
+          return prevSize;
+        });
       }
     };
 
+    const debouncedUpdateMapSize = () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(updateMapSize, 150);
+    };
+
+    // Initial size
     updateMapSize();
-    window.addEventListener('resize', updateMapSize);
+
+    // Resize on window resize (debounced)
+    window.addEventListener('resize', debouncedUpdateMapSize, { passive: true });
     
-    const resizeObserver = new ResizeObserver(() => {
-      updateMapSize();
-    });
+    // Use ResizeObserver for more accurate container size tracking (debounced)
+    const resizeObserver = new ResizeObserver(debouncedUpdateMapSize);
     
     resizeObserver.observe(containerRef.current);
 
     return () => {
-      window.removeEventListener('resize', updateMapSize);
+      clearTimeout(resizeTimeout);
+      window.removeEventListener('resize', debouncedUpdateMapSize);
       resizeObserver.disconnect();
     };
   }, []);
@@ -459,6 +474,10 @@ const FlatMap: React.FC<FlatMapProps> = ({
       
   }, [selectedNodeId, selectionToken, projection, nodesWithLocation, mapSize]);
 
+  // Track projection to detect when it changes (e.g., on resize)
+  const projectionRef = useRef(projection);
+  const pathRef = useRef(path);
+
   // Render map
   useEffect(() => {
     if (!svgRef.current || !path || !projection || !mapSize) return;
@@ -469,21 +488,41 @@ const FlatMap: React.FC<FlatMapProps> = ({
       mapContent = svg.append('g').attr('class', 'map-content');
     }
     
-    // Clear only map content, not zoom container
-    mapContent.selectAll('*').remove();
+    // Check if projection changed (e.g., on resize) - need to re-render countries
+    const projectionChanged = projectionRef.current !== projection || pathRef.current !== path;
+    
+    // Only clear dynamic content (connections, nodes, labels), or everything if projection changed
+    if (projectionChanged) {
+      mapContent.selectAll('*').remove();
+    } else {
+      mapContent.selectAll('g.connections, g.nodes, g.labels').remove();
+    }
 
-    // Draw countries
-    mapContent
-      .append('g')
-      .attr('class', 'countries')
-      .selectAll('path')
-      .data(countryPolygons)
-      .enter()
-      .append('path')
-      .attr('d', path as any)
-      .attr('fill', darkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)')
-      .attr('stroke', darkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.25)')
-      .attr('stroke-width', 0.5);
+    // Draw countries - re-render if projection changed, otherwise just update colors
+    let countriesGroup = mapContent.select<SVGGElement>('g.countries');
+    if (projectionChanged || countriesGroup.empty()) {
+      countriesGroup = mapContent
+        .append('g')
+        .attr('class', 'countries');
+      
+      countriesGroup
+        .selectAll('path')
+        .data(countryPolygons)
+        .enter()
+        .append('path')
+        .attr('d', path as any)
+        .attr('fill', darkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)')
+        .attr('stroke', darkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.25)')
+        .attr('stroke-width', 0.5);
+      
+      projectionRef.current = projection;
+      pathRef.current = path;
+    } else {
+      // Update country colors if theme changed
+      countriesGroup.selectAll('path')
+        .attr('fill', darkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)')
+        .attr('stroke', darkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.25)');
+    }
 
     // Draw connections with smooth gradient-based bidirectional flow
     const connectionGroup = mapContent.append('g').attr('class', 'connections');
