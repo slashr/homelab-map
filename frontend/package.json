@@ -40,6 +40,7 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
+    "type-check": "tsc --noEmit",
     "eject": "react-scripts eject",
     "postinstall": "patch-package"
   },
