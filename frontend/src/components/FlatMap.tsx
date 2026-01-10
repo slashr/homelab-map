@@ -95,18 +95,28 @@ const FlatMap: React.FC<FlatMapProps> = ({
   const zoomTransformRef = useRef<ZoomTransform | null>(null);
   const baseScaleRef = useRef<number>(1);
 
-  // Track mouse position for tooltip
+  // Track mouse position for tooltip (throttled to reduce updates)
   useEffect(() => {
+    let rafId: number | null = null;
     const handleMouseMove = (event: MouseEvent) => {
       mousePositionRef.current = { x: event.clientX, y: event.clientY };
+      // Only update tooltip position if hovering and use RAF for throttling
       if (hoveredArc) {
-        setTooltipPosition({ x: event.clientX, y: event.clientY });
+        if (rafId === null) {
+          rafId = requestAnimationFrame(() => {
+            setTooltipPosition(mousePositionRef.current);
+            rafId = null;
+          });
+        }
       }
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
     };
   }, [hoveredArc]);
 
@@ -249,8 +259,30 @@ const FlatMap: React.FC<FlatMapProps> = ({
   }, [projection]);
 
   // Animate connection lines - smooth bidirectional gradient flow
+  // Optimized: Cache gradient selections and only animate if connections exist
   useEffect(() => {
-    if (!svgRef.current || !projection) return;
+    if (!svgRef.current || !projection || flatMapConnections.length === 0) return;
+
+    const svg = select(svgRef.current);
+    // Cache gradient stop selections to avoid repeated DOM queries
+    const forwardStops = [
+      svg.selectAll('.gradient-stop-forward-0'),
+      svg.selectAll('.gradient-stop-forward-1'),
+      svg.selectAll('.gradient-stop-forward-2'),
+      svg.selectAll('.gradient-stop-forward-3'),
+      svg.selectAll('.gradient-stop-forward-4'),
+    ];
+    const reverseStops = [
+      svg.selectAll('.gradient-stop-reverse-0'),
+      svg.selectAll('.gradient-stop-reverse-1'),
+      svg.selectAll('.gradient-stop-reverse-2'),
+      svg.selectAll('.gradient-stop-reverse-3'),
+      svg.selectAll('.gradient-stop-reverse-4'),
+    ];
+
+    // Check if any stops exist before animating
+    const hasStops = forwardStops[0].size() > 0 || reverseStops[0].size() > 0;
+    if (!hasStops) return;
 
     const animate = () => {
       // Smooth bidirectional gradient animation
@@ -260,31 +292,19 @@ const FlatMap: React.FC<FlatMapProps> = ({
       const progress = dashOffsetRef.current / cycleLength;
       
       // Forward flow - animate gradient stops to move forward
-      const forwardStops0 = select(svgRef.current).selectAll('.gradient-stop-forward-0');
-      const forwardStops1 = select(svgRef.current).selectAll('.gradient-stop-forward-1');
-      const forwardStops2 = select(svgRef.current).selectAll('.gradient-stop-forward-2');
-      const forwardStops3 = select(svgRef.current).selectAll('.gradient-stop-forward-3');
-      const forwardStops4 = select(svgRef.current).selectAll('.gradient-stop-forward-4');
-      
-      forwardStops0.attr('offset', `${(progress * 100) % 100}%`);
-      forwardStops1.attr('offset', `${((progress * 100) + 25) % 100}%`);
-      forwardStops2.attr('offset', `${((progress * 100) + 50) % 100}%`);
-      forwardStops3.attr('offset', `${((progress * 100) + 75) % 100}%`);
-      forwardStops4.attr('offset', `${((progress * 100) + 100) % 100}%`);
+      forwardStops[0].attr('offset', `${(progress * 100) % 100}%`);
+      forwardStops[1].attr('offset', `${((progress * 100) + 25) % 100}%`);
+      forwardStops[2].attr('offset', `${((progress * 100) + 50) % 100}%`);
+      forwardStops[3].attr('offset', `${((progress * 100) + 75) % 100}%`);
+      forwardStops[4].attr('offset', `${((progress * 100) + 100) % 100}%`);
       
       // Reverse flow - animate gradient stops to move backward (opposite direction)
-      const reverseStops0 = select(svgRef.current).selectAll('.gradient-stop-reverse-0');
-      const reverseStops1 = select(svgRef.current).selectAll('.gradient-stop-reverse-1');
-      const reverseStops2 = select(svgRef.current).selectAll('.gradient-stop-reverse-2');
-      const reverseStops3 = select(svgRef.current).selectAll('.gradient-stop-reverse-3');
-      const reverseStops4 = select(svgRef.current).selectAll('.gradient-stop-reverse-4');
-      
       const reverseProgress = (1 - progress) % 1;
-      reverseStops0.attr('offset', `${(reverseProgress * 100) % 100}%`);
-      reverseStops1.attr('offset', `${((reverseProgress * 100) + 25) % 100}%`);
-      reverseStops2.attr('offset', `${((reverseProgress * 100) + 50) % 100}%`);
-      reverseStops3.attr('offset', `${((reverseProgress * 100) + 75) % 100}%`);
-      reverseStops4.attr('offset', `${((reverseProgress * 100) + 100) % 100}%`);
+      reverseStops[0].attr('offset', `${(reverseProgress * 100) % 100}%`);
+      reverseStops[1].attr('offset', `${((reverseProgress * 100) + 25) % 100}%`);
+      reverseStops[2].attr('offset', `${((reverseProgress * 100) + 50) % 100}%`);
+      reverseStops[3].attr('offset', `${((reverseProgress * 100) + 75) % 100}%`);
+      reverseStops[4].attr('offset', `${((reverseProgress * 100) + 100) % 100}%`);
       
       animationFrameRef.current = requestAnimationFrame(animate);
     };
@@ -295,7 +315,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [projection, flatMapConnections]);
+  }, [projection, flatMapConnections.length]);
 
   // Store zoom behavior ref for programmatic zooming
   const zoomBehaviorRef = useRef<ReturnType<typeof d3Zoom<SVGSVGElement, unknown>> | null>(null);
