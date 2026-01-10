@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import FlatMap from './components/FlatMap';
 import StatsPanel from './components/StatsPanel';
@@ -77,7 +77,7 @@ function App() {
         )) return newNodes;
         // Deep comparison for actual changes - check all fields used by UI
         // Create a map for O(1) lookup by name
-        const newNodeMap = new Map(newNodes.map((n: Node) => [n.name, n]));
+        const newNodeMap = new Map<string, Node>(newNodes.map((n: Node) => [n.name, n]));
         
         const nodesChanged = prevNodes.some((node) => {
           const newNode = newNodeMap.get(node.name);
@@ -121,8 +121,8 @@ function App() {
         if (prevConnections.length !== newConnections.length) return newConnections;
         
         // Create a map for O(1) lookup by connection key
-        const newConnMap = new Map(
-          newConnections.map(c => [`${c.source_node}-${c.target_node}`, c])
+        const newConnMap = new Map<string, Connection>(
+          newConnections.map((c: Connection) => [`${c.source_node}-${c.target_node}`, c])
         );
         
         // Compare all connections - check all fields that could change
