@@ -1,10 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, Suspense, lazy } from 'react';
 import axios from 'axios';
-import FlatMap from './components/FlatMap';
 import StatsPanel from './components/StatsPanel';
 import { Node, ClusterStats, Connection } from './types';
 import { mockNodes, mockConnections, mockStats } from './mockData';
 import './App.css';
+
+// Lazy load heavy map components to improve initial page load
+const FlatMap = lazy(() => import('./components/FlatMap'));
 
 // Use relative path in production (behind ingress), or env var for local dev
 const AGGREGATOR_URL = process.env.REACT_APP_AGGREGATOR_URL || 
@@ -252,15 +254,17 @@ function App() {
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
         />
-        <FlatMap
-          nodes={nodes}
-          connections={connections}
-          darkMode={darkMode}
-          selectedNodeId={selection?.id || null}
-          selectionToken={selection?.token || 0}
-          onNodeSelect={handleNodeSelect}
-          onNodeDeselect={handleNodeDeselect}
-        />
+        <Suspense fallback={<div className="map-loading">Loading map...</div>}>
+          <FlatMap
+            nodes={nodes}
+            connections={connections}
+            darkMode={darkMode}
+            selectedNodeId={selection?.id || null}
+            selectionToken={selection?.token || 0}
+            onNodeSelect={handleNodeSelect}
+            onNodeDeselect={handleNodeDeselect}
+          />
+        </Suspense>
       </div>
     </div>
   );
