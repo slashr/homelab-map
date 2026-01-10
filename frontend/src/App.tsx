@@ -66,9 +66,48 @@ function App() {
         axios.get(`${AGGREGATOR_URL}/api/connections`)
       ]);
 
-      setNodes(nodesResponse.data);
-      setStats(statsResponse.data);
-      setConnections(connectionsResponse.data);
+      // Only update state if data has actually changed to prevent unnecessary re-renders
+      setNodes(prevNodes => {
+        const newNodes = nodesResponse.data;
+        // Quick comparison: check length and first/last node names
+        if (prevNodes.length !== newNodes.length) return newNodes;
+        if (prevNodes.length > 0 && (
+          prevNodes[0].name !== newNodes[0].name ||
+          prevNodes[prevNodes.length - 1].name !== newNodes[newNodes.length - 1].name
+        )) return newNodes;
+        // Deep comparison for actual changes
+        const nodesChanged = prevNodes.some((node, i) => {
+          const newNode = newNodes[i];
+          return !newNode || node.name !== newNode.name || 
+                 node.status !== newNode.status ||
+                 node.lat !== newNode.lat || node.lon !== newNode.lon;
+        });
+        return nodesChanged ? newNodes : prevNodes;
+      });
+
+      setStats(prevStats => {
+        const newStats = statsResponse.data;
+        if (!prevStats) return newStats;
+        // Only update if stats actually changed
+        if (prevStats.total_nodes !== newStats.total_nodes ||
+            prevStats.online_nodes !== newStats.online_nodes ||
+            prevStats.offline_nodes !== newStats.offline_nodes) {
+          return newStats;
+        }
+        return prevStats;
+      });
+
+      setConnections(prevConnections => {
+        const newConnections = connectionsResponse.data;
+        // Quick comparison
+        if (prevConnections.length !== newConnections.length) return newConnections;
+        if (prevConnections.length > 0 && (
+          prevConnections[0].source_node !== newConnections[0].source_node ||
+          prevConnections[0].target_node !== newConnections[0].target_node
+        )) return newConnections;
+        return prevConnections;
+      });
+
       setError(null);
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -90,15 +129,17 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
+  // Use a Set for O(1) lookup instead of O(n) .some() check
+  const nodeNamesSet = useMemo(() => new Set(nodes.map(n => n.name)), [nodes]);
+  
   useEffect(() => {
     if (!selection?.id) {
       return;
     }
-    const exists = nodes.some((node) => node.name === selection.id);
-    if (!exists) {
+    if (!nodeNamesSet.has(selection.id)) {
       setSelection(null);
     }
-  }, [nodes, selection?.id]);
+  }, [nodeNamesSet, selection?.id]);
 
   const handleNodeSelect = useCallback((nodeName: string) => {
     setSelection({ id: nodeName, token: Date.now() });
