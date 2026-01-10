@@ -26,13 +26,13 @@ describe('StatsPanel utility functions', () => {
 
   describe('getCharacterImage', () => {
     it('should return correct image path for known characters', () => {
-      expect(getCharacterImage('michael-scranton')).toBe('/characters/michael.jpg');
-      expect(getCharacterImage('jim-halpert')).toBe('/characters/jim.jpg');
-      expect(getCharacterImage('stanley-hudson')).toBe('/characters/stanley.jpg');
+      expect(getCharacterImage('michael-scranton')).toBe('/characters/michael.png');
+      expect(getCharacterImage('jim-halpert')).toBe('/characters/jim.png');
+      expect(getCharacterImage('stanley-hudson')).toBe('/characters/stanley.png');
     });
 
     it('should handle uppercase node names', () => {
-      expect(getCharacterImage('MICHAEL-SCRANTON')).toBe('/characters/michael.jpg');
+      expect(getCharacterImage('MICHAEL-SCRANTON')).toBe('/characters/michael.png');
     });
   });
 

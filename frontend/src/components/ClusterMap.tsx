@@ -42,7 +42,7 @@ const STARS = 'https://unpkg.com/three-globe/example/img/night-sky.png';
 
 const getCharacterImage = (nodeName: string): string => {
   const character = nodeName.split('-')[0].toLowerCase();
-  return `/characters/${character}.jpg`;
+  return `/characters/${character}.png`;
 };
 
 const getFallbackAvatar = (nodeName: string): string => {

@@ -4,7 +4,7 @@ export const getCharacterFromNodeName = (nodeName: string): string => {
 
 export const getCharacterImage = (nodeName: string): string => {
   const character = getCharacterFromNodeName(nodeName);
-  return `/characters/${character}.jpg`;
+  return `/characters/${character}.png`;
 };
 
 export const getCharacterQuote = (character: string): string => {
