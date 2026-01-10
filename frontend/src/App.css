@@ -146,6 +146,23 @@
   }
 }
 
+.map-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 1rem;
+}
+
+.dark-mode .map-loading {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.light-mode .map-loading {
+  color: #333;
+}
+
 .loading-container {
   height: 100vh;
   display: flex;
