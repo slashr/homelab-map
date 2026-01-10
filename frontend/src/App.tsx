@@ -77,7 +77,7 @@ function App() {
         )) return newNodes;
         // Deep comparison for actual changes - check all fields used by UI
         // Create a map for O(1) lookup by name
-        const newNodeMap = new Map(newNodes.map((n: Node) => [n.name, n]));
+        const newNodeMap = new Map<string, Node>(newNodes.map((n: Node) => [n.name, n]));
         
         const nodesChanged = prevNodes.some((node) => {
           const newNode = newNodeMap.get(node.name);
