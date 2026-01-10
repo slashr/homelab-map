@@ -32,7 +32,7 @@ interface FlatMapConnectionDatum {
 
 const getCharacterImage = (nodeName: string): string => {
   const character = nodeName.split('-')[0].toLowerCase();
-  return `/characters/${character}.jpg`;
+  return `/characters/${character}.png`;
 };
 
 const getFallbackAvatar = (nodeName: string): string => {
@@ -714,12 +714,17 @@ const FlatMap: React.FC<FlatMapProps> = ({
       .attr('stdDeviation', 3)
       .attr('flood-opacity', 0.3);
 
-    // Clip path for circular images
+    // Clip path for square images with rounded corners
     defs
       .append('clipPath')
       .attr('id', 'node-clip')
-      .append('circle')
-      .attr('r', 24);
+      .append('rect')
+      .attr('x', -24)
+      .attr('y', -24)
+      .attr('width', 48)
+      .attr('height', 48)
+      .attr('rx', 8)
+      .attr('ry', 8);
   }, [path, projection, mapSize, countryPolygons, flatMapConnections, nodesWithLocation, selectedNodeId, darkMode, onNodeSelect, zoomTransform]);
 
   const handleMapClick = useCallback((event: React.MouseEvent) => {
