@@ -99,13 +99,33 @@ function App() {
 
       setConnections(prevConnections => {
         const newConnections = connectionsResponse.data;
-        // Quick comparison
+        // Quick comparison: check length
         if (prevConnections.length !== newConnections.length) return newConnections;
-        if (prevConnections.length > 0 && (
-          prevConnections[0].source_node !== newConnections[0].source_node ||
-          prevConnections[0].target_node !== newConnections[0].target_node
-        )) return newConnections;
-        return prevConnections;
+        
+        // Create a map for O(1) lookup by connection key
+        const newConnMap = new Map(
+          newConnections.map(c => [`${c.source_node}-${c.target_node}`, c])
+        );
+        
+        // Compare all connections - check all fields that could change
+        const connectionsChanged = prevConnections.some((conn) => {
+          const key = `${conn.source_node}-${conn.target_node}`;
+          const newConn = newConnMap.get(key);
+          if (!newConn) return true;
+          
+          // Compare all fields that could change
+          return conn.source_node !== newConn.source_node ||
+                 conn.target_node !== newConn.target_node ||
+                 conn.latency_ms !== newConn.latency_ms ||
+                 conn.min_ms !== newConn.min_ms ||
+                 conn.max_ms !== newConn.max_ms ||
+                 conn.source_lat !== newConn.source_lat ||
+                 conn.source_lon !== newConn.source_lon ||
+                 conn.target_lat !== newConn.target_lat ||
+                 conn.target_lon !== newConn.target_lon;
+        });
+        
+        return connectionsChanged ? newConnections : prevConnections;
       });
 
       setError(null);

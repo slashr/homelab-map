@@ -474,8 +474,9 @@ const FlatMap: React.FC<FlatMapProps> = ({
       
   }, [selectedNodeId, selectionToken, projection, nodesWithLocation, mapSize]);
 
-  // Track if countries have been rendered to avoid re-rendering static elements
-  const countriesRenderedRef = useRef(false);
+  // Track projection to detect when it changes (e.g., on resize)
+  const projectionRef = useRef(projection);
+  const pathRef = useRef(path);
 
   // Render map
   useEffect(() => {
@@ -487,14 +488,24 @@ const FlatMap: React.FC<FlatMapProps> = ({
       mapContent = svg.append('g').attr('class', 'map-content');
     }
     
-    // Only clear dynamic content (connections, nodes, labels), not static countries
-    mapContent.selectAll('g.connections, g.nodes, g.labels').remove();
+    // Check if projection changed (e.g., on resize) - need to re-render countries
+    const projectionChanged = projectionRef.current !== projection || pathRef.current !== path;
+    
+    // Only clear dynamic content (connections, nodes, labels), or everything if projection changed
+    if (projectionChanged) {
+      mapContent.selectAll('*').remove();
+    } else {
+      mapContent.selectAll('g.connections, g.nodes, g.labels').remove();
+    }
 
-    // Draw countries only once (they're static)
-    if (!countriesRenderedRef.current) {
-      mapContent
+    // Draw countries - re-render if projection changed, otherwise just update colors
+    let countriesGroup = mapContent.select<SVGGElement>('g.countries');
+    if (projectionChanged || countriesGroup.empty()) {
+      countriesGroup = mapContent
         .append('g')
-        .attr('class', 'countries')
+        .attr('class', 'countries');
+      
+      countriesGroup
         .selectAll('path')
         .data(countryPolygons)
         .enter()
@@ -503,10 +514,12 @@ const FlatMap: React.FC<FlatMapProps> = ({
         .attr('fill', darkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)')
         .attr('stroke', darkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.25)')
         .attr('stroke-width', 0.5);
-      countriesRenderedRef.current = true;
+      
+      projectionRef.current = projection;
+      pathRef.current = path;
     } else {
       // Update country colors if theme changed
-      mapContent.selectAll('g.countries path')
+      countriesGroup.selectAll('path')
         .attr('fill', darkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)')
         .attr('stroke', darkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.25)');
     }
