@@ -100,18 +100,28 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
   const [tooltipPosition, setTooltipPosition] = React.useState<{ x: number; y: number } | null>(null);
   const mousePositionRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // Track mouse position for tooltip
+  // Track mouse position for tooltip (throttled to reduce updates)
   useEffect(() => {
+    let rafId: number | null = null;
     const handleMouseMove = (event: MouseEvent) => {
       mousePositionRef.current = { x: event.clientX, y: event.clientY };
+      // Only update tooltip position if hovering and use RAF for throttling
       if (hoveredArc) {
-        setTooltipPosition({ x: event.clientX, y: event.clientY });
+        if (rafId === null) {
+          rafId = requestAnimationFrame(() => {
+            setTooltipPosition(mousePositionRef.current);
+            rafId = null;
+          });
+        }
       }
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
     };
   }, [hoveredArc]);
 
@@ -308,13 +318,21 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
         onNodeSelect?.(datum.name);
       };
 
-      container.addEventListener('click', handleSelect);
-      container.addEventListener('keydown', (event) => {
+      const handleKeyDown = (event: KeyboardEvent) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           handleSelect(event);
         }
-      });
+      };
+
+      container.addEventListener('click', handleSelect);
+      container.addEventListener('keydown', handleKeyDown);
+
+      // Store cleanup function on container for Globe component to call
+      (container as any).__cleanup = () => {
+        container.removeEventListener('click', handleSelect);
+        container.removeEventListener('keydown', handleKeyDown);
+      };
 
       const img = document.createElement('img');
       img.alt = datum.name;
@@ -350,6 +368,30 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
     }
   }, [onNodeDeselect]);
 
+  // Memoize Globe callbacks to prevent unnecessary re-renders
+  const arcColorCallback = useCallback((arc: object) => (arc as GlobeConnectionDatum).color, []);
+  const arcAltitudeCallback = useCallback((arc: object) => (arc as GlobeConnectionDatum).altitude, []);
+  const arcLabelCallback = useCallback((arc: object) => {
+    const datum = arc as GlobeConnectionDatum;
+    return `${datum.label} · ${datum.latency.toFixed(1)} ms`;
+  }, []);
+  const onArcHoverCallback = useCallback((arc: object | null) => {
+    if (arc) {
+      setHoveredArc(arc as GlobeConnectionDatum);
+      setTooltipPosition(mousePositionRef.current);
+    } else {
+      setHoveredArc(null);
+      setTooltipPosition(null);
+    }
+  }, []);
+  const polygonCapColorCallback = useCallback(() => (darkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)'), [darkMode]);
+  const polygonSideColorCallback = useCallback(() => 'rgba(0,0,0,0)', []);
+  const polygonStrokeColorCallback = useCallback(() => (darkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.25)'), [darkMode]);
+  const labelLatCallback = useCallback((label: object) => (label as CapitalLabel).lat, []);
+  const labelLngCallback = useCallback((label: object) => (label as CapitalLabel).lng, []);
+  const labelTextCallback = useCallback((label: object) => (label as CapitalLabel).name, []);
+  const labelColorCallback = useCallback(() => (darkMode ? '#f5f5ff' : '#0b1740'), [darkMode]);
+
   if (nodesWithLocation.length === 0) {
     return (
       <div className="cluster-map empty">
@@ -378,40 +420,28 @@ const ClusterMap: React.FC<ClusterMapProps> = ({
           htmlElementsData={htmlMarkers}
           htmlElement={renderMarker}
           arcsData={globeConnections}
-          arcColor={(arc: object) => (arc as GlobeConnectionDatum).color}
+          arcColor={arcColorCallback}
           arcStroke={0.8}
-          arcAltitude={(arc: object) => (arc as GlobeConnectionDatum).altitude}
+          arcAltitude={arcAltitudeCallback}
           arcDashLength={0.4}
           arcDashGap={0.2}
           arcDashAnimateTime={3000}
           arcsTransitionDuration={0}
-          arcLabel={(arc: object) => {
-            const datum = arc as GlobeConnectionDatum;
-            return `${datum.label} · ${datum.latency.toFixed(1)} ms`;
-          }}
-          onArcHover={(arc: object | null) => {
-            if (arc) {
-              setHoveredArc(arc as GlobeConnectionDatum);
-              // Initialize tooltip position with current mouse position
-              setTooltipPosition(mousePositionRef.current);
-            } else {
-              setHoveredArc(null);
-              setTooltipPosition(null);
-            }
-          }}
+          arcLabel={arcLabelCallback}
+          onArcHover={onArcHoverCallback}
           polygonsData={countryPolygons}
-          polygonCapColor={() => (darkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)')}
-          polygonSideColor={() => 'rgba(0,0,0,0)'}
-          polygonStrokeColor={() => (darkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.25)')}
+          polygonCapColor={polygonCapColorCallback}
+          polygonSideColor={polygonSideColorCallback}
+          polygonStrokeColor={polygonStrokeColorCallback}
           polygonsTransitionDuration={0}
           labelsData={capitalLabels}
-          labelLat={(label) => (label as CapitalLabel).lat}
-          labelLng={(label) => (label as CapitalLabel).lng}
-          labelText={(label) => (label as CapitalLabel).name}
-          labelColor={() => (darkMode ? '#f5f5ff' : '#0b1740')}
+          labelLat={labelLatCallback}
+          labelLng={labelLngCallback}
+          labelText={labelTextCallback}
+          labelColor={labelColorCallback}
           labelSize={0.45}
           labelDotRadius={0.18}
-          labelResolution={2}
+          labelResolution={1}
         />
 
         {hoveredArc && tooltipPosition && (
