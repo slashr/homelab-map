@@ -94,6 +94,12 @@ const FlatMap: React.FC<FlatMapProps> = ({
   const dashOffsetRef = useRef<number>(0);
   const zoomTransformRef = useRef<ZoomTransform | null>(null);
   const baseScaleRef = useRef<number>(1);
+  // Cache gradient stop selections to avoid re-querying DOM every frame
+  const gradientStopsRef = useRef<{
+    forward: ReturnType<typeof select>[];
+    reverse: ReturnType<typeof select>[];
+  } | null>(null);
+  const isVisibleRef = useRef<boolean>(true);
 
   // Track mouse position for tooltip (throttled to reduce updates)
   useEffect(() => {
@@ -274,67 +280,116 @@ const FlatMap: React.FC<FlatMapProps> = ({
   }, [projection]);
 
   // Animate connection lines - smooth bidirectional gradient flow
-  // Optimized: Cache gradient selections and check dynamically to handle gradients created after mount
+  // Optimized: Cache gradient selections, pause when hidden, stop when no connections
   useEffect(() => {
-    if (!svgRef.current || !projection || flatMapConnections.length === 0) return;
+    if (!svgRef.current || !projection || flatMapConnections.length === 0) {
+      // Stop animation if no connections
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = undefined;
+      }
+      gradientStopsRef.current = null;
+      return;
+    }
 
     const svg = select(svgRef.current);
     
+    // Invalidate cache when connections change (new gradients will be created)
+    gradientStopsRef.current = null;
+    
+    // Cache gradient stop selections once when connections change
+    const cacheGradientStops = () => {
+      gradientStopsRef.current = {
+        forward: [
+          svg.selectAll('.gradient-stop-forward-0'),
+          svg.selectAll('.gradient-stop-forward-1'),
+          svg.selectAll('.gradient-stop-forward-2'),
+          svg.selectAll('.gradient-stop-forward-3'),
+          svg.selectAll('.gradient-stop-forward-4'),
+        ],
+        reverse: [
+          svg.selectAll('.gradient-stop-reverse-0'),
+          svg.selectAll('.gradient-stop-reverse-1'),
+          svg.selectAll('.gradient-stop-reverse-2'),
+          svg.selectAll('.gradient-stop-reverse-3'),
+          svg.selectAll('.gradient-stop-reverse-4'),
+        ],
+      };
+    };
+    
     const animate = () => {
-      // Re-query gradient stops each frame to handle case where they're created after animation starts
-      // This is still efficient as D3 selections are lightweight
-      const forwardStops = [
-        svg.selectAll('.gradient-stop-forward-0'),
-        svg.selectAll('.gradient-stop-forward-1'),
-        svg.selectAll('.gradient-stop-forward-2'),
-        svg.selectAll('.gradient-stop-forward-3'),
-        svg.selectAll('.gradient-stop-forward-4'),
-      ];
-      const reverseStops = [
-        svg.selectAll('.gradient-stop-reverse-0'),
-        svg.selectAll('.gradient-stop-reverse-1'),
-        svg.selectAll('.gradient-stop-reverse-2'),
-        svg.selectAll('.gradient-stop-reverse-3'),
-        svg.selectAll('.gradient-stop-reverse-4'),
-      ];
+      // Skip animation if tab is hidden
+      if (!isVisibleRef.current) {
+        animationFrameRef.current = requestAnimationFrame(animate);
+        return;
+      }
 
-      // Only animate if stops exist (they may not exist yet on initial mount)
-      const hasStops = forwardStops[0].size() > 0 || reverseStops[0].size() > 0;
+      // Cache gradient stops if not cached yet (gradients created after mount)
+      if (!gradientStopsRef.current) {
+        cacheGradientStops();
+      }
+
+      const stops = gradientStopsRef.current;
+      if (!stops) {
+        animationFrameRef.current = requestAnimationFrame(animate);
+        return;
+      }
+
+      // Only animate if stops exist
+      const hasStops = stops.forward[0].size() > 0 || stops.reverse[0].size() > 0;
       if (hasStops) {
         // Smooth bidirectional gradient animation
-        // Animate gradient stop positions to create flowing effect
         const cycleLength = 200; // Animation cycle length
         dashOffsetRef.current = (dashOffsetRef.current - 0.15 + cycleLength) % cycleLength;
         const progress = dashOffsetRef.current / cycleLength;
         
         // Forward flow - animate gradient stops to move forward
-        forwardStops[0].attr('offset', `${(progress * 100) % 100}%`);
-        forwardStops[1].attr('offset', `${((progress * 100) + 25) % 100}%`);
-        forwardStops[2].attr('offset', `${((progress * 100) + 50) % 100}%`);
-        forwardStops[3].attr('offset', `${((progress * 100) + 75) % 100}%`);
-        forwardStops[4].attr('offset', `${((progress * 100) + 100) % 100}%`);
+        stops.forward[0].attr('offset', `${(progress * 100) % 100}%`);
+        stops.forward[1].attr('offset', `${((progress * 100) + 25) % 100}%`);
+        stops.forward[2].attr('offset', `${((progress * 100) + 50) % 100}%`);
+        stops.forward[3].attr('offset', `${((progress * 100) + 75) % 100}%`);
+        stops.forward[4].attr('offset', `${((progress * 100) + 100) % 100}%`);
         
         // Reverse flow - animate gradient stops to move backward (opposite direction)
         const reverseProgress = (1 - progress) % 1;
-        reverseStops[0].attr('offset', `${(reverseProgress * 100) % 100}%`);
-        reverseStops[1].attr('offset', `${((reverseProgress * 100) + 25) % 100}%`);
-        reverseStops[2].attr('offset', `${((reverseProgress * 100) + 50) % 100}%`);
-        reverseStops[3].attr('offset', `${((reverseProgress * 100) + 75) % 100}%`);
-        reverseStops[4].attr('offset', `${((reverseProgress * 100) + 100) % 100}%`);
+        stops.reverse[0].attr('offset', `${(reverseProgress * 100) % 100}%`);
+        stops.reverse[1].attr('offset', `${((reverseProgress * 100) + 25) % 100}%`);
+        stops.reverse[2].attr('offset', `${((reverseProgress * 100) + 50) % 100}%`);
+        stops.reverse[3].attr('offset', `${((reverseProgress * 100) + 75) % 100}%`);
+        stops.reverse[4].attr('offset', `${((reverseProgress * 100) + 100) % 100}%`);
       }
       
-      // Continue animation loop regardless of whether stops exist yet
-      // This ensures animation starts once gradients are created
       animationFrameRef.current = requestAnimationFrame(animate);
     };
 
-    animationFrameRef.current = requestAnimationFrame(animate);
+    // Small delay to allow gradients to be created in render effect
+    const timeoutId = setTimeout(() => {
+      animationFrameRef.current = requestAnimationFrame(animate);
+    }, 0);
+
     return () => {
+      clearTimeout(timeoutId);
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = undefined;
       }
+      gradientStopsRef.current = null;
     };
   }, [projection, flatMapConnections.length]);
+
+  // Pause animation when tab is hidden to save CPU/memory
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      isVisibleRef.current = !document.hidden;
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    isVisibleRef.current = !document.hidden;
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   // Store zoom behavior ref for programmatic zooming
   const zoomBehaviorRef = useRef<ReturnType<typeof d3Zoom<SVGSVGElement, unknown>> | null>(null);
