@@ -75,12 +75,30 @@ function App() {
           prevNodes[0].name !== newNodes[0].name ||
           prevNodes[prevNodes.length - 1].name !== newNodes[newNodes.length - 1].name
         )) return newNodes;
-        // Deep comparison for actual changes
-        const nodesChanged = prevNodes.some((node, i) => {
-          const newNode = newNodes[i];
-          return !newNode || node.name !== newNode.name || 
+        // Deep comparison for actual changes - check all fields used by UI
+        // Create a map for O(1) lookup by name
+        const newNodeMap = new Map(newNodes.map(n => [n.name, n]));
+        
+        const nodesChanged = prevNodes.some((node) => {
+          const newNode = newNodeMap.get(node.name);
+          if (!newNode) return true;
+          
+          // Compare all fields that could change and are used by the UI
+          return node.name !== newNode.name ||
                  node.status !== newNode.status ||
-                 node.lat !== newNode.lat || node.lon !== newNode.lon;
+                 node.lat !== newNode.lat ||
+                 node.lon !== newNode.lon ||
+                 node.location !== newNode.location ||
+                 node.provider !== newNode.provider ||
+                 node.external_ip !== newNode.external_ip ||
+                 node.internal_ip !== newNode.internal_ip ||
+                 node.cpu_percent !== newNode.cpu_percent ||
+                 node.memory_percent !== newNode.memory_percent ||
+                 node.disk_percent !== newNode.disk_percent ||
+                 node.network_tx_bytes_per_sec !== newNode.network_tx_bytes_per_sec ||
+                 node.network_rx_bytes_per_sec !== newNode.network_rx_bytes_per_sec ||
+                 node.last_seen !== newNode.last_seen ||
+                 node.kubelet_version !== newNode.kubelet_version;
         });
         return nodesChanged ? newNodes : prevNodes;
       });
