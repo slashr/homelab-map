@@ -95,9 +95,10 @@ const FlatMap: React.FC<FlatMapProps> = ({
   const zoomTransformRef = useRef<ZoomTransform | null>(null);
   const baseScaleRef = useRef<number>(1);
   // Cache gradient stop selections to avoid re-querying DOM every frame
+  // Using 'any' for selection type to avoid complex D3 type annotations
   const gradientStopsRef = useRef<{
-    forward: ReturnType<typeof select>[];
-    reverse: ReturnType<typeof select>[];
+    forward: any[];
+    reverse: any[];
   } | null>(null);
   const isVisibleRef = useRef<boolean>(true);
 
