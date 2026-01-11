@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState, Suspense, lazy } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense, lazy, memo } from 'react';
 import axios from 'axios';
 import StatsPanel from './components/StatsPanel';
 import { Node, ClusterStats, Connection } from './types';
@@ -11,7 +11,8 @@ const FlatMap = lazy(() => import('./components/FlatMap'));
 // Use relative path in production (behind ingress), or env var for local dev
 const AGGREGATOR_URL = process.env.REACT_APP_AGGREGATOR_URL || 
   (window.location.hostname === 'localhost' ? 'http://localhost:8000' : '');
-const REFRESH_INTERVAL = 10000; // 10 seconds
+const REFRESH_INTERVAL = 15000; // 15 seconds (reduced from 10s to lower server load)
+const REFRESH_INTERVAL_BACKGROUND = 60000; // 60 seconds when tab is hidden
 const USE_MOCK_DATA = process.env.REACT_APP_USE_MOCK_DATA === 'true' || false;
 
 function App() {
@@ -162,12 +163,53 @@ function App() {
     }
   };
 
+  // Track if tab is visible for polling optimization
+  const isVisibleRef = useRef(!document.hidden);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isFetchingRef = useRef(false);
+
+  // Debounced fetch to prevent multiple rapid fetches
+  const debouncedFetch = useCallback(() => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+    fetchData().finally(() => {
+      isFetchingRef.current = false;
+    });
+  }, []);
+
+  // Setup polling with visibility-aware interval
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, REFRESH_INTERVAL);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount
+    const setupInterval = () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+      // Use longer interval when tab is hidden
+      const interval = isVisibleRef.current ? REFRESH_INTERVAL : REFRESH_INTERVAL_BACKGROUND;
+      intervalRef.current = setInterval(debouncedFetch, interval);
+    };
+
+    const handleVisibilityChange = () => {
+      isVisibleRef.current = !document.hidden;
+      setupInterval();
+      // Fetch immediately when becoming visible (data may be stale)
+      if (isVisibleRef.current) {
+        debouncedFetch();
+      }
+    };
+
+    // Initial fetch
+    debouncedFetch();
+    setupInterval();
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [debouncedFetch]);
 
   // Use a Set for O(1) lookup instead of O(n) .some() check
   const nodeNamesSet = useMemo(() => new Set(nodes.map(n => n.name)), [nodes]);

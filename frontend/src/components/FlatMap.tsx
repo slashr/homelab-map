@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { geoMercator, geoPath } from 'd3-geo';
 import { select } from 'd3-selection';
 import { zoom as d3Zoom, zoomIdentity, ZoomTransform } from 'd3-zoom';
@@ -914,5 +914,6 @@ const FlatMap: React.FC<FlatMapProps> = ({
   );
 };
 
-export default FlatMap;
+// Memoize to prevent re-renders when parent state changes but props are identical
+export default memo(FlatMap);
 
