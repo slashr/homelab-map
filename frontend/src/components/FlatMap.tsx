@@ -769,10 +769,17 @@ const FlatMap: React.FC<FlatMapProps> = ({
           onNodeSelect?.(node.name);
         });
 
-      // Node circle
+      // Node background (rounded square to match square icons)
+      const size = isSelected ? 56 : 52;
+      const offset = size / 2;
       nodeGroup
-        .append('circle')
-        .attr('r', isSelected ? 28 : 26)
+        .append('rect')
+        .attr('x', -offset)
+        .attr('y', -offset)
+        .attr('width', size)
+        .attr('height', size)
+        .attr('rx', 10)
+        .attr('ry', 10)
         .attr('fill', darkMode ? '#10101a' : '#ffffff')
         .attr('stroke', 
           node.status === 'online' ? '#4caf50' :
