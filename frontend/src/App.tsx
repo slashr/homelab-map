@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense, lazy, memo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense, lazy } from 'react';
 import axios from 'axios';
 import StatsPanel from './components/StatsPanel';
 import { Node, ClusterStats, Connection } from './types';
