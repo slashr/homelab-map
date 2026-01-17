@@ -271,13 +271,19 @@ def _is_private_ip(ip: str) -> bool:
     """Check if IP is private/internal (RFC1918, Tailscale, etc.)"""
     if not ip:
         return True
-    # Common private ranges: 10.x, 172.16-31.x, 192.168.x, 100.64-127.x (CGNAT/Tailscale)
-    return (ip.startswith('10.') or
-            ip.startswith('192.168.') or
-            ip.startswith('172.16.') or ip.startswith('172.17.') or
-            ip.startswith('172.18.') or ip.startswith('172.19.') or
-            ip.startswith('172.2') or ip.startswith('172.30.') or ip.startswith('172.31.') or
-            ip.startswith('100.'))
+    # RFC1918: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+    # CGNAT/Tailscale: 100.64.0.0/10
+    if ip.startswith('10.') or ip.startswith('192.168.') or ip.startswith('100.'):
+        return True
+    # Check 172.16.0.0 - 172.31.255.255 (172.16/12)
+    if ip.startswith('172.'):
+        try:
+            second_octet = int(ip.split('.')[1])
+            if 16 <= second_octet <= 31:
+                return True
+        except (IndexError, ValueError):
+            pass
+    return False
 
 
 def _detect_ip_geolocation(ip: str) -> Optional[dict]:
