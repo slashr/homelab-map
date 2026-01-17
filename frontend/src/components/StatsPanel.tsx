@@ -1,8 +1,11 @@
-import React, { memo } from 'react';
+import React, { memo, useState, useEffect } from 'react';
+import axios from 'axios';
 import { ClusterStats, Node } from '../types';
 import { formatBytesPerSecond } from '../utils/format';
 import { getCharacterFromNodeName, getCharacterImage, getCharacterQuote } from '../utils/characterUtils';
 import './StatsPanel.css';
+
+const AGGREGATOR_URL = process.env.REACT_APP_AGGREGATOR_URL || 'http://localhost:8000';
 
 // Format a timestamp as relative time (e.g., "2s ago", "5m ago")
 const formatRelativeTime = (timestamp: number | string | undefined): string => {
@@ -97,11 +100,59 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
   isOpen = true,
   onClose,
 }) => {
+  const [quote, setQuote] = useState<string | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+
+  const selectedNode = selectedNodeId && showDetails ? nodes.find((node) => node.name === selectedNodeId) : null;
+
+  // Fetch AI-generated quote when node is selected
+  useEffect(() => {
+    if (!selectedNode) {
+      setQuote(null);
+      return;
+    }
+
+    const abortController = new AbortController();
+    const nodeName = selectedNode.name;
+
+    const fetchQuote = async () => {
+      setQuoteLoading(true);
+      try {
+        const response = await axios.get(`${AGGREGATOR_URL}/api/quote/${nodeName}`, {
+          signal: abortController.signal,
+        });
+        // Only update state if this request wasn't aborted
+        if (!abortController.signal.aborted) {
+          setQuote(response.data.quote);
+        }
+      } catch (error) {
+        // Ignore aborted requests
+        if (axios.isCancel(error)) {
+          return;
+        }
+        // Fallback to static quote on error
+        console.warn('Failed to fetch AI quote, using fallback:', error);
+        if (!abortController.signal.aborted) {
+          setQuote(getCharacterQuote(getCharacterFromNodeName(nodeName)));
+        }
+      } finally {
+        if (!abortController.signal.aborted) {
+          setQuoteLoading(false);
+        }
+      }
+    };
+
+    fetchQuote();
+
+    // Cleanup: abort request if node selection changes
+    return () => {
+      abortController.abort();
+    };
+  }, [selectedNode]);
+
   if (!stats) {
     return null;
   }
-
-  const selectedNode = selectedNodeId && showDetails ? nodes.find((node) => node.name === selectedNodeId) : null;
 
   return (
     <div className={`stats-panel ${darkMode ? 'dark' : 'light'} ${isOpen ? 'open' : ''} ${showDetails ? 'showing-details' : ''}`}>
@@ -154,8 +205,12 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
             </div>
             
             <div className="node-quote">
-              <div className="node-quote-text">
-                "{getCharacterQuote(getCharacterFromNodeName(selectedNode.name))}"
+              <div className={`node-quote-text ${quoteLoading ? 'loading' : ''}`}>
+                {quoteLoading ? (
+                  <span className="quote-loading">Generating quote...</span>
+                ) : (
+                  `"${quote || getCharacterQuote(getCharacterFromNodeName(selectedNode.name))}"`
+                )}
               </div>
             </div>
             

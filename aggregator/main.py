@@ -7,10 +7,13 @@ Receives data from agents and serves to frontend
 import os
 import time
 import logging
+import hashlib
 from typing import Dict, List, Optional
 from datetime import datetime
+from dataclasses import dataclass
 
 from fastapi import FastAPI, HTTPException
+from openai import AsyncOpenAI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -20,6 +23,46 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Initialize async OpenAI client (uses OPENAI_API_KEY env var)
+openai_client: Optional[AsyncOpenAI] = None
+if os.getenv("OPENAI_API_KEY"):
+    openai_client = AsyncOpenAI()
+    logger.info("AsyncOpenAI client initialized")
+else:
+    logger.warning("OPENAI_API_KEY not set, quote generation will use fallback quotes")
+
+
+@dataclass
+class QuoteCache:
+    """Cached quote with metadata"""
+    quote: str
+    generated_at: float  # Unix timestamp
+    metrics_hash: str  # Hash of metrics used to generate quote
+
+
+# In-memory quote cache (node_name -> QuoteCache)
+quote_cache: Dict[str, QuoteCache] = {}
+QUOTE_CACHE_TTL_SECONDS = 86400  # 24 hours
+
+# Static fallback quotes for when OpenAI is unavailable
+FALLBACK_QUOTES = {
+    'michael': "I'm not superstitious, but I am a little stitious.",
+    'dwight': "Identity theft is not a joke, Jim! Millions of families suffer every year!",
+    'jim': "Bears. Beets. Battlestar Galactica.",
+    'pam': "There's a lot of beauty in ordinary things. Isn't that kind of the point?",
+    'angela': "I don't have a headache. I'm just preparing.",
+    'kevin': "Why waste time say lot word when few word do trick?",
+    'stanley': "Did I stutter?",
+    'phyllis': "Close your mouth, sweetie. You look like a trout.",
+    'toby': "I hate so much about the things that you choose to be.",
+    'oscar': "Actually...",
+    'creed': "Nobody steals from Creed Bratton and gets away with it.",
+    'meredith': "It's casual day!",
+    'andy': "I'm always thinking one step ahead... like a carpenter that makes stairs.",
+    'ryan': "I'd rather she be alone than with somebody. Is that love?",
+    'kelly': "I talk a lot, so I've learned to tune myself out.",
+}
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -172,6 +215,7 @@ def _cleanup_stale_nodes():
     for node_name in nodes_to_remove:
         del nodes_data[node_name]
         connections_data.pop(node_name, None)
+        quote_cache.pop(node_name, None)  # Prune cached quotes for removed nodes
         # Also remove connections where this node is the target
         for source_node in list(connections_data.keys()):
             connections = connections_data[source_node]
@@ -575,6 +619,149 @@ async def get_cluster_stats():
     except Exception as e:
         logger.error(f"Error getting cluster stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def _compute_metrics_hash(node_data: dict) -> str:
+    """Compute a hash of key metrics to detect significant changes"""
+    # Use floor division to bucket metrics - avoids cache invalidation on minor changes
+    # Use `or 0` to handle None values (nodes may have missing metrics)
+    cpu = int((node_data.get('cpu_percent') or 0) / 10) * 10  # Floor to 10% bucket
+    mem = int((node_data.get('memory_percent') or 0) / 10) * 10
+    uptime_days = int((node_data.get('uptime_seconds') or 0) / 86400)  # Days
+    # Include temp and load since they're used in the quote prompt
+    temp = int((node_data.get('cpu_temp_celsius') or 0) / 5) * 5  # Floor to 5°C bucket
+    load = int((node_data.get('load_avg_1m') or 0) * 2) / 2  # Floor to 0.5 bucket
+
+    key = f"{cpu}:{mem}:{uptime_days}:{temp}:{load}"
+    return hashlib.md5(key.encode()).hexdigest()[:8]
+
+
+def _format_uptime(seconds: Optional[float]) -> str:
+    """Format uptime in human-readable form"""
+    if not seconds or seconds < 0:
+        return "unknown"
+
+    days = int(seconds / 86400)
+    hours = int((seconds % 86400) / 3600)
+
+    if days > 0:
+        return f"{days} days"
+    return f"{hours} hours"
+
+
+async def _generate_quote(character: str, node_name: str, node_data: dict) -> str:
+    """Generate a quote using OpenAI API"""
+    if not openai_client:
+        return FALLBACK_QUOTES.get(character, "That's what she said.")
+
+    # Build metrics string
+    metrics_parts = [f"Node: {node_name}"]
+
+    if node_data.get('cpu_percent') is not None:
+        metrics_parts.append(f"CPU: {node_data['cpu_percent']:.0f}%")
+
+    if node_data.get('memory_percent') is not None:
+        metrics_parts.append(f"Memory: {node_data['memory_percent']:.0f}%")
+
+    if node_data.get('uptime_seconds'):
+        metrics_parts.append(f"Uptime: {_format_uptime(node_data['uptime_seconds'])}")
+
+    if node_data.get('cpu_temp_celsius') is not None:
+        metrics_parts.append(f"Temperature: {node_data['cpu_temp_celsius']:.0f}°C")
+
+    if node_data.get('load_avg_1m') is not None:
+        metrics_parts.append(f"Load: {node_data['load_avg_1m']:.2f}")
+
+    metrics_str = ", ".join(metrics_parts)
+
+    # Character name mapping for more natural prompts
+    character_names = {
+        'michael': 'Michael Scott',
+        'dwight': 'Dwight Schrute',
+        'jim': 'Jim Halpert',
+        'pam': 'Pam Beesly',
+        'angela': 'Angela Martin',
+        'kevin': 'Kevin Malone',
+        'stanley': 'Stanley Hudson',
+        'phyllis': 'Phyllis Vance',
+        'toby': 'Toby Flenderson',
+        'oscar': 'Oscar Martinez',
+        'creed': 'Creed Bratton',
+        'meredith': 'Meredith Palmer',
+        'andy': 'Andy Bernard',
+        'ryan': 'Ryan Howard',
+        'kelly': 'Kelly Kapoor',
+    }
+
+    full_name = character_names.get(character, character.title())
+
+    prompt = f"""Generate a short, funny quote in the style of {full_name} from The Office (US). Reference these server metrics humorously:
+{metrics_str}
+
+1-2 sentences max. Output only the quote."""
+
+    try:
+        response = await openai_client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=100,
+            temperature=0.8,
+        )
+        quote = response.choices[0].message.content.strip()
+        # Remove surrounding quotes if present
+        if quote.startswith('"') and quote.endswith('"'):
+            quote = quote[1:-1]
+        return quote
+    except Exception as e:
+        logger.error(f"OpenAI API error: {e}")
+        return FALLBACK_QUOTES.get(character, "That's what she said.")
+
+
+@app.get("/api/quote/{node_name}")
+async def get_node_quote(node_name: str):
+    """Get an AI-generated quote for a specific node based on its character"""
+    if node_name not in nodes_data:
+        raise HTTPException(status_code=404, detail=f"Node {node_name} not found")
+
+    node_data = nodes_data[node_name]
+
+    # Extract character name from node_name (e.g., "dwight-pi" -> "dwight")
+    character = node_name.split('-')[0].lower()
+
+    # Check cache
+    current_time = time.time()
+    metrics_hash = _compute_metrics_hash(node_data)
+
+    if node_name in quote_cache:
+        cached = quote_cache[node_name]
+        age = current_time - cached.generated_at
+
+        # Return cached quote if still valid (within TTL and metrics haven't changed significantly)
+        if age < QUOTE_CACHE_TTL_SECONDS and cached.metrics_hash == metrics_hash:
+            return {
+                "node_name": node_name,
+                "character": character,
+                "quote": cached.quote,
+                "cached": True,
+                "cache_age_seconds": int(age),
+            }
+
+    # Generate new quote
+    quote = await _generate_quote(character, node_name, node_data)
+
+    # Cache the quote
+    quote_cache[node_name] = QuoteCache(
+        quote=quote,
+        generated_at=current_time,
+        metrics_hash=metrics_hash,
+    )
+
+    return {
+        "node_name": node_name,
+        "character": character,
+        "quote": quote,
+        "cached": False,
+    }
 
 
 if __name__ == "__main__":
