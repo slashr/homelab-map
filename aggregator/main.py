@@ -32,6 +32,11 @@ if os.getenv("OPENAI_API_KEY"):
 else:
     logger.warning("OPENAI_API_KEY not set, quote generation will use fallback quotes")
 
+# Interactive mode password (required for AI quote generation)
+INTERACTIVE_PASSWORD = os.getenv("INTERACTIVE_PASSWORD")
+if not INTERACTIVE_PASSWORD:
+    logger.warning("INTERACTIVE_PASSWORD not set, interactive quote mode will be disabled")
+
 
 @dataclass
 class QuoteCache:
@@ -301,6 +306,11 @@ class NodeData(BaseModel):
     network_dropin: Optional[int] = None
     network_dropout: Optional[int] = None
     process_count: Optional[int] = None
+
+
+class QuoteRequest(BaseModel):
+    """Request body for interactive quote generation"""
+    password: str
 
 
 class NodeStatus(BaseModel):
@@ -731,9 +741,21 @@ Quote:"""
         return FALLBACK_QUOTES.get(character, "That's what she said.")
 
 
-@app.get("/api/quote/{node_name}")
-async def get_node_quote(node_name: str):
-    """Get an AI-generated quote for a specific node based on its character"""
+@app.post("/api/quote/{node_name}")
+async def get_node_quote(node_name: str, request: QuoteRequest):
+    """Get an AI-generated quote for a specific node based on its character.
+
+    Requires password authentication for interactive mode.
+    """
+    # Validate password
+    if not INTERACTIVE_PASSWORD:
+        raise HTTPException(
+            status_code=503,
+            detail="Interactive mode not configured"
+        )
+    if request.password != INTERACTIVE_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid password")
+
     if node_name not in nodes_data:
         raise HTTPException(status_code=404, detail=f"Node {node_name} not found")
 
