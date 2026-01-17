@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Map, MapRef, Marker } from 'react-map-gl/maplibre';
+import { Map as MapGL, MapRef, Marker } from 'react-map-gl/maplibre';
 import { DeckGL } from '@deck.gl/react';
 import { ArcLayer } from '@deck.gl/layers';
 import { FlyToInterpolator } from '@deck.gl/core';
@@ -282,7 +282,7 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
           isDragging ? 'grabbing' : isHovering ? 'pointer' : 'grab'
         }
       >
-        <Map
+        <MapGL
           ref={mapRef}
           mapStyle={darkMode ? MAP_STYLES.dark : MAP_STYLES.light}
           attributionControl={false}
