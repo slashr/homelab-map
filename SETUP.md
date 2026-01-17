@@ -46,6 +46,14 @@ HOME_LOCATION = {
 
 **Note**: Cloud provider locations (Oracle, GCP) are pre-configured with their datacenter locations - no need to change those!
 
+### 2b. Optional Performance Tunables
+
+Set these in your agent/aggregator manifests to reduce connection churn on larger clusters:
+
+- Aggregator: `MAX_CONNECTIONS` (default 500), `DEDUP_CONNECTIONS` (default true)
+- Agent: `REPORT_INTERVAL` (default 30s), `CONNECTION_CHECK_INTERVAL` (default 5),
+  `MAX_CONNECTION_TARGETS` (default 25)
+
 ### 3. Build and Push Docker Images
 
 ```bash
