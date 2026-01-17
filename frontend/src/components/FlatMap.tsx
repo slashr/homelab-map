@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { geoMercator, geoPath } from 'd3-geo';
-import { select } from 'd3-selection';
+import { select, type Selection } from 'd3-selection';
 import { zoom as d3Zoom, zoomIdentity, ZoomTransform } from 'd3-zoom';
 import { feature } from 'topojson-client';
 import countriesTopo from 'world-atlas/countries-110m.json';
@@ -628,8 +628,13 @@ const FlatMap: React.FC<FlatMapProps> = ({
       const forwardGradientId = `gradient-forward-${index}`;
       const reverseGradientId = `gradient-reverse-${index}`;
 
-      let forwardFlow: ReturnType<typeof select>;
-      let reverseFlow: ReturnType<typeof select> | null = null;
+      let forwardFlow: Selection<SVGPathElement, unknown, null, undefined>;
+      let reverseFlow: Selection<SVGPathElement, unknown, null, undefined> | null = null;
+
+      // Group for hover effects
+      const lineGroup = connectionGroup.append('g')
+        .attr('class', 'connection-line-group')
+        .attr('data-connection-index', index);
 
       if (!useSimpleLines) {
         // Forward flow gradient (source to target) - aligned along the line
@@ -707,7 +712,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
           .attr('class', 'gradient-stop-reverse-4');
 
         // Single line with forward gradient
-        forwardFlow = connectionGroup
+        forwardFlow = lineGroup
           .append('path')
           .attr('class', 'connection-line-flow-forward')
           .attr('d', `M ${start[0]},${start[1]} L ${end[0]},${end[1]}`)
@@ -717,7 +722,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
           .style('cursor', 'pointer');
 
         // Single line with reverse gradient
-        reverseFlow = connectionGroup
+        reverseFlow = lineGroup
           .append('path')
           .attr('class', 'connection-line-flow-reverse')
           .attr('d', `M ${start[0]},${start[1]} L ${end[0]},${end[1]}`)
@@ -726,7 +731,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
           .attr('fill', 'none')
           .style('cursor', 'pointer');
       } else {
-        forwardFlow = connectionGroup
+        forwardFlow = lineGroup
           .append('path')
           .attr('class', 'connection-line-flow-forward')
           .attr('d', `M ${start[0]},${start[1]} L ${end[0]},${end[1]}`)
@@ -734,16 +739,6 @@ const FlatMap: React.FC<FlatMapProps> = ({
           .attr('stroke-width', 1.2)
           .attr('fill', 'none')
           .style('cursor', 'pointer');
-      }
-
-      // Group for hover effects
-      const lineGroup = connectionGroup.append('g')
-        .attr('class', 'connection-line-group')
-        .attr('data-connection-index', index);
-      
-      lineGroup.node()?.appendChild(forwardFlow.node()!);
-      if (reverseFlow) {
-        lineGroup.node()?.appendChild(reverseFlow.node()!);
       }
 
       lineGroup
