@@ -13,6 +13,7 @@ export interface Node {
   disk_percent?: number;
   network_tx_bytes_per_sec?: number;
   network_rx_bytes_per_sec?: number;
+  last_seen_timestamp?: number;
   last_seen: string;
   kubelet_version?: string;
 }

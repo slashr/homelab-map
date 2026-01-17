@@ -100,6 +100,7 @@ function App() {
                  node.disk_percent !== newNode.disk_percent ||
                  node.network_tx_bytes_per_sec !== newNode.network_tx_bytes_per_sec ||
                  node.network_rx_bytes_per_sec !== newNode.network_rx_bytes_per_sec ||
+                 node.last_seen_timestamp !== newNode.last_seen_timestamp ||
                  node.last_seen !== newNode.last_seen ||
                  node.kubelet_version !== newNode.kubelet_version;
         });

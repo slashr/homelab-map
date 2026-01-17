@@ -65,6 +65,8 @@ A real-time visualization tool for monitoring your k3s homelab cluster across mu
 **Aggregator Environment Variables:**
 - `NODE_TIMEOUT_SECONDS`: Number of seconds before a node is marked offline. Defaults to 120.
 - `CLEANUP_GRACE_PERIOD_SECONDS`: Number of seconds after timeout before stale nodes are removed. Defaults to 86400 (24 hours).
+- `MAX_CONNECTIONS`: Maximum number of connections returned by the API. Defaults to 500.
+- `DEDUP_CONNECTIONS`: When true, collapses bidirectional connections into one entry (default: true).
 
   ```bash
   export NODE_TIMEOUT_SECONDS=300
@@ -76,6 +78,9 @@ A real-time visualization tool for monitoring your k3s homelab cluster across mu
 **Agent Environment Variables:**
 - `HOME_CITY`, `HOME_LAT`, `HOME_LON`: Override the default Berlin home marker for your on-prem nodes.
 - `ENABLE_AUTO_GEOLOCATION`: Enable automatic geolocation detection (default: true). Set to 'false' to disable.
+- `REPORT_INTERVAL`: How often to report node stats to the aggregator in seconds (default: 30).
+- `CONNECTION_CHECK_INTERVAL`: How many report cycles between connection checks (default: 5).
+- `MAX_CONNECTION_TARGETS`: Max number of nodes to ping for latency per report (default: 25).
 
   ```bash
   export HOME_CITY="Austin, TX"

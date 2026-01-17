@@ -11,6 +11,7 @@ import time
 import logging
 import subprocess
 import statistics
+import random
 import requests
 import psutil
 from typing import Optional
@@ -23,9 +24,53 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def _get_float_env(var_name: str, default: float) -> float:
+    """Return a float from the environment or fall back to default."""
+    raw_value = os.getenv(var_name)
+    if raw_value is None:
+        return default
+    try:
+        return float(raw_value)
+    except ValueError:
+        logger.warning(
+            "Invalid %s value '%s'; falling back to %s",
+            var_name,
+            raw_value,
+            default,
+        )
+        return default
+
+
+def _get_int_env(var_name: str, default: int) -> int:
+    """Return an int from the environment or fall back to default."""
+    raw_value = os.getenv(var_name)
+    if raw_value is None:
+        return default
+    try:
+        value = int(raw_value)
+    except ValueError:
+        logger.warning(
+            "Invalid %s value '%s'; falling back to %s",
+            var_name,
+            raw_value,
+            default,
+        )
+        return default
+    if value < 0:
+        logger.warning(
+            "%s must be non-negative; falling back to %s",
+            var_name,
+            default,
+        )
+        return default
+    return value
+
+
 # Configuration from environment variables
 AGGREGATOR_URL = os.getenv('AGGREGATOR_URL', 'http://homelab-map-aggregator:8000')
-REPORT_INTERVAL = int(os.getenv('REPORT_INTERVAL', '30'))  # seconds
+REPORT_INTERVAL = _get_int_env('REPORT_INTERVAL', 30)  # seconds
+CONNECTION_CHECK_INTERVAL = _get_int_env('CONNECTION_CHECK_INTERVAL', 5)
+MAX_CONNECTION_TARGETS = _get_int_env('MAX_CONNECTION_TARGETS', 25)
 NODE_NAME = os.getenv('NODE_NAME', socket.gethostname())
 NETWORK_COUNTER_SNAPSHOT = None
 ENABLE_AUTO_GEOLOCATION = os.getenv('ENABLE_AUTO_GEOLOCATION', 'true').lower() == 'true'
@@ -44,23 +89,6 @@ HOME_LON_ENV_VAR = 'HOME_LON'
 DEFAULT_HOME_CITY = 'Berlin, Germany'
 DEFAULT_HOME_LAT = 52.5200
 DEFAULT_HOME_LON = 13.4050
-
-
-def _get_float_env(var_name: str, default: float) -> float:
-    """Return a float from the environment or fall back to default."""
-    raw_value = os.getenv(var_name)
-    if raw_value is None:
-        return default
-    try:
-        return float(raw_value)
-    except ValueError:
-        logger.warning(
-            "Invalid %s value '%s'; falling back to %s",
-            var_name,
-            raw_value,
-            default,
-        )
-        return default
 
 
 def _build_home_location() -> dict:
@@ -440,6 +468,16 @@ def measure_connections():
     """Measure network latency to all other nodes"""
     other_nodes = get_other_nodes()
     connections = []
+
+    original_count = len(other_nodes)
+    if MAX_CONNECTION_TARGETS > 0 and original_count > MAX_CONNECTION_TARGETS:
+        random.shuffle(other_nodes)
+        other_nodes = other_nodes[:MAX_CONNECTION_TARGETS]
+        logger.info(
+            "Sampling %s connection targets out of %s nodes",
+            MAX_CONNECTION_TARGETS,
+            original_count,
+        )
     
     logger.info(f"Measuring connections to {len(other_nodes)} other nodes...")
     
@@ -464,9 +502,9 @@ def main():
     logger.info(f"Starting Homelab K3s Agent on {NODE_NAME}")
     logger.info(f"Aggregator URL: {AGGREGATOR_URL}")
     logger.info(f"Report interval: {REPORT_INTERVAL}s")
+    logger.info(f"Connection check interval: {CONNECTION_CHECK_INTERVAL} reports")
     
     connection_check_counter = 0
-    CONNECTION_CHECK_INTERVAL = 5  # Measure connections every 5 reports (2.5 minutes)
     
     while True:
         try:

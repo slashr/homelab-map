@@ -1,5 +1,7 @@
 import { Node, Connection, ClusterStats } from './types';
 
+const mockNow = Math.floor(Date.now() / 1000);
+
 // Mock nodes with various locations around the world
 export const mockNodes: Node[] = [
   {
@@ -17,6 +19,7 @@ export const mockNodes: Node[] = [
     disk_percent: 62.3,
     network_tx_bytes_per_sec: 1024000,
     network_rx_bytes_per_sec: 2048000,
+    last_seen_timestamp: mockNow - 5,
     last_seen: '5s ago',
     kubelet_version: 'v1.28.0'
   },
@@ -35,6 +38,7 @@ export const mockNodes: Node[] = [
     disk_percent: 58.7,
     network_tx_bytes_per_sec: 512000,
     network_rx_bytes_per_sec: 1024000,
+    last_seen_timestamp: mockNow - 3,
     last_seen: '3s ago',
     kubelet_version: 'v1.28.0'
   },
@@ -53,6 +57,7 @@ export const mockNodes: Node[] = [
     disk_percent: 71.2,
     network_tx_bytes_per_sec: 768000,
     network_rx_bytes_per_sec: 1536000,
+    last_seen_timestamp: mockNow - 7,
     last_seen: '7s ago',
     kubelet_version: 'v1.27.5'
   },
@@ -71,6 +76,7 @@ export const mockNodes: Node[] = [
     disk_percent: 48.9,
     network_tx_bytes_per_sec: 2048000,
     network_rx_bytes_per_sec: 4096000,
+    last_seen_timestamp: mockNow - 2,
     last_seen: '2s ago',
     kubelet_version: 'v1.28.0'
   },
@@ -89,6 +95,7 @@ export const mockNodes: Node[] = [
     disk_percent: 65.4,
     network_tx_bytes_per_sec: 1536000,
     network_rx_bytes_per_sec: 3072000,
+    last_seen_timestamp: mockNow - 4,
     last_seen: '4s ago',
     kubelet_version: 'v1.27.5'
   },
@@ -107,6 +114,7 @@ export const mockNodes: Node[] = [
     disk_percent: 52.1,
     network_tx_bytes_per_sec: 896000,
     network_rx_bytes_per_sec: 1792000,
+    last_seen_timestamp: mockNow - 6,
     last_seen: '6s ago',
     kubelet_version: 'v1.28.0'
   },
@@ -125,6 +133,7 @@ export const mockNodes: Node[] = [
     disk_percent: 78.5,
     network_tx_bytes_per_sec: 256000,
     network_rx_bytes_per_sec: 512000,
+    last_seen_timestamp: mockNow - 45,
     last_seen: '45s ago',
     kubelet_version: 'v1.27.5'
   }
@@ -240,4 +249,3 @@ export const mockStats: ClusterStats = {
   total_connections: 8,
   timestamp: new Date().toISOString()
 };
-

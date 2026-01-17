@@ -88,7 +88,6 @@ const FlatMap: React.FC<FlatMapProps> = ({
   const [mapSize, setMapSize] = React.useState<{ width: number; height: number } | null>(null);
   const [hoveredArc, setHoveredArc] = React.useState<FlatMapConnectionDatum | null>(null);
   const [tooltipPosition, setTooltipPosition] = React.useState<{ x: number; y: number } | null>(null);
-  const [zoomTransform, setZoomTransform] = React.useState<ZoomTransform | null>(null);
   const mousePositionRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const animationFrameRef = useRef<number>();
   const dashOffsetRef = useRef<number>(0);
@@ -127,8 +126,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
     };
   }, [hoveredArc]);
 
-  // Group nodes by city/location for hub-and-spoke layout
-  const cityGroups = useMemo(() => {
+  const nodesWithLocation = useMemo(() => {
     // First, filter nodes with valid locations
     const validNodes = nodes
       .filter(
@@ -144,121 +142,69 @@ const FlatMap: React.FC<FlatMapProps> = ({
         lng: node.lon as number,
       }));
     
-    // Group nodes by location name (city) - use the location field if available
+    // Group nodes by approximate location (within 0.01 degrees ~ 1km)
     const locationGroups = new Map<string, typeof validNodes>();
     validNodes.forEach((node) => {
-      // Use location name if available, otherwise group by rounded coords
-      const key = node.location || `${Math.round(node.lat * 10) / 10},${Math.round(node.lng * 10) / 10}`;
+      // Round to 2 decimal places to group nearby nodes
+      const key = `${Math.round(node.lat * 100) / 100},${Math.round(node.lng * 100) / 100}`;
       if (!locationGroups.has(key)) {
         locationGroups.set(key, []);
       }
       locationGroups.get(key)!.push(node);
     });
     
-    // Create city hub data with original center and spread nodes
-    const cityData: {
-      cityName: string;
-      centerLat: number;
-      centerLng: number;
-      nodes: typeof validNodes;
-    }[] = [];
-    
-    locationGroups.forEach((groupNodes, cityName) => {
-      // Calculate city center as the average of all node positions
-      const centerLat = groupNodes.reduce((sum, n) => sum + n.lat, 0) / groupNodes.length;
-      const centerLng = groupNodes.reduce((sum, n) => sum + n.lng, 0) / groupNodes.length;
-      
-      // Spread nodes in a circle around the city center
-      // Use larger radius for more nodes, minimum radius for visibility
-      const baseRadius = 2.5; // degrees offset (visible at map scale)
-      const radius = Math.max(baseRadius, groupNodes.length * 0.8);
-      
-      const spreadNodes = groupNodes.map((node, index) => {
-        // Start from top (-90°) and spread clockwise
-        const startAngle = -Math.PI / 2;
-        const angle = startAngle + (2 * Math.PI * index) / groupNodes.length;
-        return {
-          ...node,
-          // Store original lat/lng for connection calculations
-          originalLat: node.lat,
-          originalLng: node.lng,
-          // New display position spread around the city center
-          lat: centerLat + radius * Math.sin(angle),
-          lng: centerLng + radius * Math.cos(angle),
-        };
-      });
-      
-      cityData.push({
-        cityName,
-        centerLat,
-        centerLng,
-        nodes: spreadNodes,
-      });
-    });
-    
-    return cityData;
-  }, [nodes]);
-
-  // Flatten nodes for rendering, with display positions
-  const nodesWithLocation = useMemo(() => {
-    return cityGroups.flatMap(city => city.nodes);
-  }, [cityGroups]);
-
-  // Lookup to find which city a node belongs to (for routing connections through city centers)
-  const nodeToCityLookup = useMemo(() => {
-    const map = new Map<string, { centerLat: number; centerLng: number; cityName: string }>();
-    cityGroups.forEach((city) => {
-      city.nodes.forEach((node) => {
-        map.set(node.name, {
-          centerLat: city.centerLat,
-          centerLng: city.centerLng,
-          cityName: city.cityName,
+    // Apply visual offset to nodes sharing the same location
+    const result: typeof validNodes = [];
+    locationGroups.forEach((groupNodes) => {
+      if (groupNodes.length === 1) {
+        // Single node, no offset needed
+        result.push(groupNodes[0]);
+      } else {
+        // Multiple nodes at same location - spread them in a circle
+        const radius = 0.5; // degrees offset (visible at map scale)
+        groupNodes.forEach((node, index) => {
+          const angle = (2 * Math.PI * index) / groupNodes.length;
+          result.push({
+            ...node,
+            lat: node.lat + radius * Math.sin(angle),
+            lng: node.lng + radius * Math.cos(angle),
+          });
         });
-      });
-    });
-    return map;
-  }, [cityGroups]);
-
-  // Connections between city centers (for inter-city connections only)
-  const flatMapConnections = useMemo(() => {
-    // De-duplicate connections at the city level
-    const cityConnectionSet = new Set<string>();
-    const result: FlatMapConnectionDatum[] = [];
-    
-    connections.forEach((conn) => {
-      const sourceCity = nodeToCityLookup.get(conn.source_node);
-      const targetCity = nodeToCityLookup.get(conn.target_node);
-      
-      if (!sourceCity || !targetCity) {
-        return;
       }
-      
-      // Skip intra-city connections (same city)
-      if (sourceCity.cityName === targetCity.cityName) {
-        return;
-      }
-      
-      // Create a unique key for this city-to-city connection (bidirectional)
-      const cityPair = [sourceCity.cityName, targetCity.cityName].sort().join('|');
-      if (cityConnectionSet.has(cityPair)) {
-        return; // Already have this city-to-city connection
-      }
-      cityConnectionSet.add(cityPair);
-      
-      const colors = getLatencyColor(conn.latency_ms, darkMode);
-      result.push({
-        startLat: sourceCity.centerLat,
-        startLng: sourceCity.centerLng,
-        endLat: targetCity.centerLat,
-        endLng: targetCity.centerLng,
-        color: colors,
-        latency: conn.latency_ms,
-        label: `${sourceCity.cityName} ↔ ${targetCity.cityName}`,
-      });
     });
     
     return result;
-  }, [connections, nodeToCityLookup, darkMode]);
+  }, [nodes]);
+
+  const nodeLookup = useMemo(() => {
+    const map = new Map<string, { lat: number; lng: number }>();
+    nodesWithLocation.forEach((node) => {
+      map.set(node.name, { lat: node.lat, lng: node.lng });
+    });
+    return map;
+  }, [nodesWithLocation]);
+
+  const flatMapConnections = useMemo(() => {
+    return connections
+      .map((conn) => {
+        const source = nodeLookup.get(conn.source_node);
+        const target = nodeLookup.get(conn.target_node);
+        if (!source || !target) {
+          return null;
+        }
+        const colors = getLatencyColor(conn.latency_ms, darkMode);
+        return {
+          startLat: source.lat,
+          startLng: source.lng,
+          endLat: target.lat,
+          endLng: target.lng,
+          color: colors,
+          latency: conn.latency_ms,
+          label: `${conn.source_node} → ${conn.target_node}`,
+        } as FlatMapConnectionDatum;
+      })
+      .filter((value): value is FlatMapConnectionDatum => Boolean(value));
+  }, [connections, nodeLookup, darkMode]);
 
   const countryPolygons = useMemo(() => {
     const geoJson = feature(
@@ -346,6 +292,16 @@ const FlatMap: React.FC<FlatMapProps> = ({
       return;
     }
 
+    const MAX_ANIMATED_CONNECTIONS = 200;
+    if (flatMapConnections.length > MAX_ANIMATED_CONNECTIONS) {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = undefined;
+      }
+      gradientStopsRef.current = null;
+      return;
+    }
+
     const svg = select(svgRef.current);
     
     // Invalidate cache when connections change (new gradients will be created)
@@ -371,12 +327,19 @@ const FlatMap: React.FC<FlatMapProps> = ({
       };
     };
     
-    const animate = () => {
+    let lastFrameTime = 0;
+    const animate = (now: number) => {
       // Skip animation if tab is hidden
       if (!isVisibleRef.current) {
         animationFrameRef.current = requestAnimationFrame(animate);
         return;
       }
+
+      if (now - lastFrameTime < 50) { // ~20fps throttle to limit DOM work
+        animationFrameRef.current = requestAnimationFrame(animate);
+        return;
+      }
+      lastFrameTime = now;
 
       // Cache gradient stops if not cached yet (gradients created after mount)
       if (!gradientStopsRef.current) {
@@ -472,7 +435,6 @@ const FlatMap: React.FC<FlatMapProps> = ({
       })
       .on('zoom', (event: any) => {
         zoomTransformRef.current = event.transform;
-        setZoomTransform(event.transform);
         mapContent.attr('transform', event.transform.toString());
         
         // Update node scales to maintain constant size (inverse of zoom scale)
@@ -541,7 +503,6 @@ const FlatMap: React.FC<FlatMapProps> = ({
       
       // Update transform and trigger zoom event manually
       zoomTransformRef.current = interpolatedTransform;
-      setZoomTransform(interpolatedTransform);
       const mapContent = svg.select<SVGGElement>('g.map-content');
       mapContent.attr('transform', interpolatedTransform.toString());
       
@@ -569,7 +530,6 @@ const FlatMap: React.FC<FlatMapProps> = ({
         // Animation complete - update zoom behavior's transform state so further zooming works
         const finalTransform = zoomIdentity.translate(transform.x, transform.y).scale(transform.k);
         zoomTransformRef.current = finalTransform;
-        setZoomTransform(finalTransform);
         
         // Update the zoom behavior's internal state by calling transform on the selection
         // This ensures the zoom behavior knows about the current transform and allows further zooming
@@ -641,6 +601,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
     if (defs.empty()) {
       defs = svg.append('defs');
     }
+    defs.selectAll('linearGradient.connection-gradient').remove();
     
     flatMapConnections.forEach((conn, index) => {
       const start = projection([conn.startLng, conn.startLat]);
@@ -654,6 +615,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
 
       // Forward flow gradient (source to target) - aligned along the line
       const forwardGradient = defs.append('linearGradient')
+        .attr('class', 'connection-gradient')
         .attr('id', forwardGradientId)
         .attr('x1', start[0])
         .attr('y1', start[1])
@@ -690,6 +652,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
 
       // Reverse flow gradient (target to source) - opposite direction
       const reverseGradient = defs.append('linearGradient')
+        .attr('class', 'connection-gradient')
         .attr('id', reverseGradientId)
         .attr('x1', end[0])
         .attr('y1', end[1])
@@ -765,54 +728,6 @@ const FlatMap: React.FC<FlatMapProps> = ({
           setHoveredArc(null);
           setTooltipPosition(null);
         });
-    });
-
-    // Draw city hubs and spoke lines connecting city centers to nodes
-    const hubsGroup = mapContent.append('g').attr('class', 'city-hubs');
-    const spokesGroup = mapContent.append('g').attr('class', 'spoke-lines');
-    
-    cityGroups.forEach((city) => {
-      const centerCoords = projection([city.centerLng, city.centerLat]);
-      if (!centerCoords) return;
-
-      // Draw city hub marker (small circle at city center)
-      hubsGroup
-        .append('circle')
-        .attr('class', 'city-hub-marker')
-        .attr('cx', centerCoords[0])
-        .attr('cy', centerCoords[1])
-        .attr('r', 6)
-        .attr('fill', darkMode ? 'rgba(100, 180, 255, 0.9)' : 'rgba(50, 120, 200, 0.9)')
-        .attr('stroke', darkMode ? 'rgba(150, 200, 255, 0.6)' : 'rgba(30, 80, 150, 0.6)')
-        .attr('stroke-width', 2);
-
-      // Draw city name label near hub
-      hubsGroup
-        .append('text')
-        .attr('class', 'city-hub-label')
-        .attr('x', centerCoords[0])
-        .attr('y', centerCoords[1] - 12)
-        .attr('text-anchor', 'middle')
-        .attr('font-size', '11px')
-        .attr('font-weight', '600')
-        .attr('fill', darkMode ? 'rgba(200, 220, 255, 0.9)' : 'rgba(30, 60, 120, 0.9)')
-        .text(city.cityName);
-
-      // Draw spoke lines from city center to each node
-      city.nodes.forEach((node) => {
-        const nodeCoords = projection([node.lng, node.lat]);
-        if (!nodeCoords) return;
-
-        // Spoke line with gradient
-        spokesGroup
-          .append('path')
-          .attr('class', 'spoke-line')
-          .attr('d', `M ${centerCoords[0]},${centerCoords[1]} L ${nodeCoords[0]},${nodeCoords[1]}`)
-          .attr('stroke', darkMode ? 'rgba(100, 180, 255, 0.5)' : 'rgba(50, 120, 200, 0.5)')
-          .attr('stroke-width', 1.5)
-          .attr('stroke-dasharray', '4,4')
-          .attr('fill', 'none');
-      });
     });
 
     // Draw capital labels
@@ -907,28 +822,32 @@ const FlatMap: React.FC<FlatMapProps> = ({
     // Reuse the existing defs element
     defs = svg.select<SVGDefsElement>('defs');
     
-    // Shadow filter
-    defs
-      .append('filter')
-      .attr('id', 'node-shadow')
-      .append('feDropShadow')
-      .attr('dx', 0)
-      .attr('dy', 2)
-      .attr('stdDeviation', 3)
-      .attr('flood-opacity', 0.3);
+    // Shadow filter (create once)
+    if (defs.select('#node-shadow').empty()) {
+      defs
+        .append('filter')
+        .attr('id', 'node-shadow')
+        .append('feDropShadow')
+        .attr('dx', 0)
+        .attr('dy', 2)
+        .attr('stdDeviation', 3)
+        .attr('flood-opacity', 0.3);
+    }
 
-    // Clip path for square images with rounded corners
-    defs
-      .append('clipPath')
-      .attr('id', 'node-clip')
-      .append('rect')
-      .attr('x', -24)
-      .attr('y', -24)
-      .attr('width', 48)
-      .attr('height', 48)
-      .attr('rx', 8)
-      .attr('ry', 8);
-  }, [path, projection, mapSize, countryPolygons, flatMapConnections, nodesWithLocation, cityGroups, selectedNodeId, darkMode, onNodeSelect, zoomTransform]);
+    // Clip path for square images with rounded corners (create once)
+    if (defs.select('#node-clip').empty()) {
+      defs
+        .append('clipPath')
+        .attr('id', 'node-clip')
+        .append('rect')
+        .attr('x', -24)
+        .attr('y', -24)
+        .attr('width', 48)
+        .attr('height', 48)
+        .attr('rx', 8)
+        .attr('ry', 8);
+    }
+  }, [path, projection, mapSize, countryPolygons, flatMapConnections, nodesWithLocation, selectedNodeId, darkMode, onNodeSelect]);
 
   const handleMapClick = useCallback((event: React.MouseEvent) => {
     const target = event.target as Element;
@@ -1024,4 +943,3 @@ const FlatMap: React.FC<FlatMapProps> = ({
 
 // Memoize to prevent re-renders when parent state changes but props are identical
 export default memo(FlatMap);
-
