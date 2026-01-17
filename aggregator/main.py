@@ -626,8 +626,11 @@ def _compute_metrics_hash(node_data: dict) -> str:
     cpu = round(node_data.get('cpu_percent', 0) / 10) * 10  # Round to nearest 10%
     mem = round(node_data.get('memory_percent', 0) / 10) * 10
     uptime_days = int((node_data.get('uptime_seconds', 0) or 0) / 86400)  # Days
+    # Include temp and load since they're used in the quote prompt
+    temp = round((node_data.get('cpu_temp_celsius') or 0) / 5) * 5  # Round to nearest 5°C
+    load = round((node_data.get('load_avg_1m') or 0) * 2) / 2  # Round to nearest 0.5
 
-    key = f"{cpu}:{mem}:{uptime_days}"
+    key = f"{cpu}:{mem}:{uptime_days}:{temp}:{load}"
     return hashlib.md5(key.encode()).hexdigest()[:8]
 
 
