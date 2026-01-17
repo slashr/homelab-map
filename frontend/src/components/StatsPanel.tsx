@@ -5,7 +5,9 @@ import { formatBytesPerSecond } from '../utils/format';
 import { getCharacterFromNodeName, getCharacterImage, getCharacterQuote } from '../utils/characterUtils';
 import './StatsPanel.css';
 
-const AGGREGATOR_URL = process.env.REACT_APP_AGGREGATOR_URL || 'http://localhost:8000';
+// Use relative path in production (behind ingress), or env var for local dev
+const AGGREGATOR_URL = process.env.REACT_APP_AGGREGATOR_URL ||
+  (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:8000' : '');
 
 // Format a timestamp as relative time (e.g., "2s ago", "5m ago")
 const formatRelativeTime = (timestamp: number | string | undefined): string => {
