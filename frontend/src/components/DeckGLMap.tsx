@@ -1,9 +1,9 @@
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Map as MapGL, MapRef, Marker } from 'react-map-gl/maplibre';
-import { DeckGL } from '@deck.gl/react';
-import { ArcLayer } from '@deck.gl/layers';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { Map as ReactMapGL } from 'react-map-gl/maplibre';
+import DeckGL from '@deck.gl/react';
+import { ArcLayer, IconLayer } from '@deck.gl/layers';
 import { FlyToInterpolator } from '@deck.gl/core';
-import type { PickingInfo, MapViewState } from '@deck.gl/core';
+import type { PickingInfo } from '@deck.gl/core';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Node, Connection } from '../types';
 import './DeckGLMap.css';
@@ -28,6 +28,23 @@ interface ArcDatum {
   label: string;
 }
 
+interface NodeDatum {
+  name: string;
+  coordinates: [number, number];
+  status: string;
+  isSelected: boolean;
+}
+
+interface ViewState {
+  longitude: number;
+  latitude: number;
+  zoom: number;
+  pitch: number;
+  bearing: number;
+  transitionDuration?: number;
+  transitionInterpolator?: FlyToInterpolator;
+}
+
 // Free map tile providers
 const MAP_STYLES = {
   dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
@@ -37,43 +54,12 @@ const MAP_STYLES = {
 const MAX_RENDERED_CONNECTIONS = 200;
 
 // Initial view state centered on US with global view
-const INITIAL_VIEW_STATE: MapViewState = {
+const INITIAL_VIEW_STATE: ViewState = {
   longitude: -40,
   latitude: 30,
   zoom: 1.8,
   pitch: 0,
   bearing: 0,
-};
-
-const getCharacterImage = (nodeName: string): string => {
-  const character = nodeName.split('-')[0].toLowerCase();
-  return `/characters/${character}.png`;
-};
-
-const getFallbackAvatar = (nodeName: string): string => {
-  const character = nodeName.split('-')[0].toLowerCase();
-  const fallbackNameMap: Record<string, string> = {
-    michael: 'Michael+Scott',
-    jim: 'Jim+Halpert',
-    dwight: 'Dwight+Schrute',
-    angela: 'Angela+Martin',
-    stanley: 'Stanley+Hudson',
-    phyllis: 'Phyllis+Vance',
-    toby: 'Toby+Flenderson',
-  };
-  const fallbackColorMap: Record<string, string> = {
-    michael: '667eea',
-    jim: '4285F4',
-    dwight: 'FFC107',
-    angela: '9c27b0',
-    stanley: 'ff9800',
-    phyllis: '4caf50',
-    toby: '795548',
-  };
-
-  const fallbackName = fallbackNameMap[character] || character;
-  const fallbackColor = fallbackColorMap[character] || '607D8B';
-  return `https://ui-avatars.com/api/?name=${fallbackName}&size=128&background=${fallbackColor}&color=fff&bold=true`;
 };
 
 const getLatencyColor = (latency: number, darkMode: boolean): [number, number, number, number] => {
@@ -96,6 +82,33 @@ const getLatencyQuality = (latency: number): string => {
   return 'Poor';
 };
 
+// Generate avatar URL for nodes
+const getAvatarUrl = (nodeName: string): string => {
+  const character = nodeName.split('-')[0].toLowerCase();
+  const nameMap: Record<string, string> = {
+    michael: 'Michael+Scott',
+    jim: 'Jim+Halpert',
+    dwight: 'Dwight+Schrute',
+    angela: 'Angela+Martin',
+    stanley: 'Stanley+Hudson',
+    phyllis: 'Phyllis+Vance',
+    toby: 'Toby+Flenderson',
+  };
+  const colorMap: Record<string, string> = {
+    michael: '667eea',
+    jim: '4285F4',
+    dwight: 'FFC107',
+    angela: '9c27b0',
+    stanley: 'ff9800',
+    phyllis: '4caf50',
+    toby: '795548',
+  };
+
+  const name = nameMap[character] || character;
+  const color = colorMap[character] || '607D8B';
+  return `https://ui-avatars.com/api/?name=${name}&size=128&background=${color}&color=fff&bold=true&rounded=true`;
+};
+
 const DeckGLMap: React.FC<DeckGLMapProps> = ({
   nodes,
   connections,
@@ -106,11 +119,10 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
   onNodeSelect,
   onNodeDeselect,
 }) => {
-  const mapRef = useRef<MapRef>(null);
-  const [viewState, setViewState] = useState<MapViewState>(INITIAL_VIEW_STATE);
+  const [viewState, setViewState] = useState<ViewState>(INITIAL_VIEW_STATE);
   const [hoveredArc, setHoveredArc] = useState<ArcDatum | null>(null);
+  const [hoveredNode, setHoveredNode] = useState<NodeDatum | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
-  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
 
   // Filter nodes with valid locations
   const nodesWithLocation = useMemo(() => {
@@ -123,7 +135,7 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
     );
 
     // Group nodes by approximate location
-    const locationGroups = new Map<string, typeof validNodes>();
+    const locationGroups = new Map<string, Node[]>();
     validNodes.forEach((node) => {
       const key = `${Math.round(node.lat! * 100) / 100},${Math.round(node.lon! * 100) / 100}`;
       if (!locationGroups.has(key)) {
@@ -134,7 +146,7 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
 
     // Apply visual offset to nodes sharing the same location
     const result: Array<Node & { adjustedLat: number; adjustedLon: number }> = [];
-    locationGroups.forEach((groupNodes) => {
+    locationGroups.forEach((groupNodes: Node[]) => {
       if (groupNodes.length === 1) {
         result.push({
           ...groupNodes[0],
@@ -143,7 +155,7 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
         });
       } else {
         const radius = 0.5;
-        groupNodes.forEach((node, index) => {
+        groupNodes.forEach((node: Node, index: number) => {
           const angle = (2 * Math.PI * index) / groupNodes.length;
           result.push({
             ...node,
@@ -167,7 +179,7 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
   }, [nodesWithLocation]);
 
   // Build arc data for connections
-  const arcData = useMemo(() => {
+  const arcData = useMemo((): ArcDatum[] => {
     const mapped = connections
       .map((conn): ArcDatum | null => {
         const source = nodeLookup.get(conn.source_node);
@@ -192,17 +204,28 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
     return mapped.sort((a, b) => a.latency - b.latency).slice(0, MAX_RENDERED_CONNECTIONS);
   }, [connections, nodeLookup, darkMode]);
 
+  // Build node data for IconLayer
+  const nodeData = useMemo((): NodeDatum[] => {
+    return nodesWithLocation.map((node) => ({
+      name: node.name,
+      coordinates: [node.adjustedLon, node.adjustedLat] as [number, number],
+      status: node.status,
+      isSelected: node.name === selectedNodeId,
+    }));
+  }, [nodesWithLocation, selectedNodeId]);
+
   const totalConnections = connectionsTotal ?? connections.length;
 
-  // Arc layer for connections
+  // Layers
   const layers = useMemo(() => [
+    // Connections arc layer
     new ArcLayer<ArcDatum>({
       id: 'connections-arc',
       data: arcData,
-      getSourcePosition: (d) => d.source,
-      getTargetPosition: (d) => d.target,
-      getSourceColor: (d) => d.sourceColor,
-      getTargetColor: (d) => d.targetColor,
+      getSourcePosition: (d: ArcDatum) => d.source,
+      getTargetPosition: (d: ArcDatum) => d.target,
+      getSourceColor: (d: ArcDatum) => d.sourceColor,
+      getTargetColor: (d: ArcDatum) => d.targetColor,
       getWidth: 2,
       getHeight: 0.3,
       greatCircle: true,
@@ -212,6 +235,7 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
       onHover: (info: PickingInfo<ArcDatum>) => {
         if (info.object) {
           setHoveredArc(info.object);
+          setHoveredNode(null);
           setTooltipPosition({ x: info.x ?? 0, y: info.y ?? 0 });
         } else {
           setHoveredArc(null);
@@ -219,7 +243,42 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
         }
       },
     }),
-  ], [arcData]);
+    // Nodes icon layer
+    new IconLayer<NodeDatum>({
+      id: 'nodes-icon',
+      data: nodeData,
+      getPosition: (d: NodeDatum) => d.coordinates,
+      getIcon: (d: NodeDatum) => ({
+        url: getAvatarUrl(d.name),
+        width: 128,
+        height: 128,
+        anchorY: 64,
+      }),
+      getSize: (d: NodeDatum) => (d.isSelected ? 56 : 44),
+      pickable: true,
+      onClick: (info: PickingInfo<NodeDatum>) => {
+        if (info.object) {
+          onNodeSelect?.(info.object.name);
+        }
+      },
+      onHover: (info: PickingInfo<NodeDatum>) => {
+        if (info.object) {
+          setHoveredNode(info.object);
+          setHoveredArc(null);
+          setTooltipPosition({ x: info.x ?? 0, y: info.y ?? 0 });
+        } else {
+          setHoveredNode(null);
+          if (!hoveredArc) {
+            setTooltipPosition(null);
+          }
+        }
+      },
+      sizeScale: 1,
+      sizeUnits: 'pixels',
+      sizeMinPixels: 32,
+      sizeMaxPixels: 64,
+    }),
+  ], [arcData, nodeData, onNodeSelect, hoveredArc]);
 
   // Fly to selected node
   useEffect(() => {
@@ -228,7 +287,7 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
     const selectedNode = nodesWithLocation.find((n) => n.name === selectedNodeId);
     if (!selectedNode) return;
 
-    setViewState((prev) => ({
+    setViewState((prev: ViewState) => ({
       ...prev,
       longitude: selectedNode.adjustedLon,
       latitude: selectedNode.adjustedLat,
@@ -239,11 +298,11 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
   }, [selectedNodeId, selectionToken, nodesWithLocation]);
 
   // Handle map click for deselection
-  const handleMapClick = useCallback(
-    (event: React.MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (target.closest('.deck-gl-node-marker')) return;
-      onNodeDeselect?.();
+  const handleClick = useCallback(
+    (info: PickingInfo) => {
+      if (!info.object) {
+        onNodeDeselect?.();
+      }
     },
     [onNodeDeselect]
   );
@@ -259,8 +318,9 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedNodeId, onNodeDeselect]);
 
-  const handleImageError = useCallback((nodeName: string) => {
-    setImageErrors((prev) => new Set(prev).add(nodeName));
+  // Handle view state change
+  const onViewStateChange = useCallback((e: { viewState: ViewState }) => {
+    setViewState(e.viewState);
   }, []);
 
   if (nodesWithLocation.length === 0) {
@@ -272,54 +332,21 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
   }
 
   return (
-    <div className={`deck-gl-map ${darkMode ? 'dark' : 'light'}`} onClick={handleMapClick}>
+    <div className={`deck-gl-map ${darkMode ? 'dark' : 'light'}`}>
       <DeckGL
         viewState={viewState}
-        onViewStateChange={({ viewState: vs }) => setViewState(vs as MapViewState)}
+        onViewStateChange={onViewStateChange as any}
         controller={true}
         layers={layers}
-        getCursor={({ isDragging, isHovering }) =>
+        onClick={handleClick}
+        getCursor={({ isDragging, isHovering }: { isDragging: boolean; isHovering: boolean }) =>
           isDragging ? 'grabbing' : isHovering ? 'pointer' : 'grab'
         }
       >
-        <MapGL
-          ref={mapRef}
+        <ReactMapGL
           mapStyle={darkMode ? MAP_STYLES.dark : MAP_STYLES.light}
           attributionControl={false}
         />
-
-        {/* Node markers as React components for better interactivity */}
-        {nodesWithLocation.map((node) => {
-          const isSelected = node.name === selectedNodeId;
-          const imageSrc = imageErrors.has(node.name)
-            ? getFallbackAvatar(node.name)
-            : getCharacterImage(node.name);
-
-          return (
-            <Marker
-              key={node.name}
-              longitude={node.adjustedLon}
-              latitude={node.adjustedLat}
-              anchor="center"
-            >
-              <div
-                className={`deck-gl-node-marker ${isSelected ? 'selected' : ''} status-${node.status}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onNodeSelect?.(node.name);
-                }}
-                title={node.name}
-              >
-                <img
-                  src={imageSrc}
-                  alt={node.name}
-                  onError={() => handleImageError(node.name)}
-                />
-                <div className="status-indicator" />
-              </div>
-            </Marker>
-          );
-        })}
       </DeckGL>
 
       {/* Connection count indicator */}
@@ -351,6 +378,34 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
             <div className="arc-tooltip__row">
               <span>Quality</span>
               <strong>{getLatencyQuality(hoveredArc.latency)}</strong>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Node tooltip */}
+      {hoveredNode && tooltipPosition && (
+        <div
+          className={`arc-tooltip ${darkMode ? 'dark' : 'light'}`}
+          style={{
+            position: 'absolute',
+            left: tooltipPosition.x + 12,
+            top: tooltipPosition.y - 12,
+            pointerEvents: 'none',
+          }}
+        >
+          <div className="arc-tooltip__header">
+            <strong>{hoveredNode.name}</strong>
+          </div>
+          <div className="arc-tooltip__body">
+            <div className="arc-tooltip__row">
+              <span>Status</span>
+              <strong style={{ 
+                color: hoveredNode.status === 'online' ? '#4caf50' : 
+                       hoveredNode.status === 'warning' ? '#ff9800' : '#f44336' 
+              }}>
+                {hoveredNode.status.charAt(0).toUpperCase() + hoveredNode.status.slice(1)}
+              </strong>
             </div>
           </div>
         </div>
