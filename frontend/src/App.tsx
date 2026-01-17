@@ -58,8 +58,19 @@ function App() {
       setInteractiveMode(true);
       setShowPasswordModal(false);
       setPasswordModal({ passwordInput: '', passwordError: false });
-    } catch {
-      setPasswordModal(prev => ({ ...prev, passwordError: true }));
+    } catch (error) {
+      // Only treat 401 (Unauthorized) as invalid password
+      // 404 (node not found) means nodes aren't loaded yet - allow auth to proceed
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        setPasswordModal(prev => ({ ...prev, passwordError: true }));
+      } else {
+        // For other errors (404, network), assume password is valid and enable mode
+        // The actual quote request will fail gracefully if there's a real issue
+        setInteractivePassword(passwordModal.passwordInput);
+        setInteractiveMode(true);
+        setShowPasswordModal(false);
+        setPasswordModal({ passwordInput: '', passwordError: false });
+      }
     }
   };
   
