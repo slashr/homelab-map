@@ -973,3 +973,176 @@
 .stats-panel.light .node-details-metrics {
   background: #f8f9fa;
 }
+
+/* Interactive Mode Styles */
+.node-details-header-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.interactive-mode-toggle {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+.stats-panel.light .interactive-mode-toggle {
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.interactive-mode-toggle:hover {
+  background: rgba(102, 126, 234, 0.2);
+  border-color: #667eea;
+}
+
+.interactive-mode-toggle.active {
+  background: rgba(102, 126, 234, 0.3);
+  border-color: #667eea;
+}
+
+/* Ask Quote Button */
+.ask-quote-button {
+  margin-top: 12px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.ask-quote-button:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.ask-quote-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Password Modal */
+.password-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.password-modal {
+  background: #1a1a2e;
+  padding: 24px;
+  border-radius: 12px;
+  min-width: 300px;
+  max-width: 90vw;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.stats-panel.light .password-modal {
+  background: #ffffff;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+.password-modal h4 {
+  margin: 0 0 4px 0;
+  font-size: 1.1rem;
+  color: #ffffff;
+}
+
+.stats-panel.light .password-modal h4 {
+  color: #333;
+}
+
+.password-modal-hint {
+  margin: 0 0 16px 0;
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.password-modal input {
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+}
+
+.stats-panel.light .password-modal input {
+  border-color: rgba(0, 0, 0, 0.15);
+  background: #f5f5f5;
+  color: #333;
+}
+
+.password-modal input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.password-modal input.error {
+  border-color: #e74c3c;
+}
+
+.error-text {
+  color: #e74c3c;
+  font-size: 0.85rem;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.modal-button {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modal-button.cancel {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #888;
+}
+
+.stats-panel.light .modal-button.cancel {
+  border-color: rgba(0, 0, 0, 0.15);
+  color: #666;
+}
+
+.modal-button.cancel:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.modal-button.submit {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border: none;
+  color: white;
+}
+
+.modal-button.submit:hover {
+  opacity: 0.9;
+}

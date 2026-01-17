@@ -444,12 +444,42 @@ async def test_node_replacement_preserves_location_data(
 
 # Quote endpoint tests
 
+TEST_PASSWORD = "test-password"
+
 
 @pytest.mark.anyio
-async def test_get_node_quote_returns_404_for_unknown_node() -> None:
-    """Test that quote endpoint returns 404 for unknown nodes."""
+async def test_get_node_quote_returns_401_for_invalid_password(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that quote endpoint returns 401 for invalid password."""
+    monkeypatch.setattr(main, "INTERACTIVE_PASSWORD", TEST_PASSWORD)
+    main.nodes_data["dwight-pi"] = {"name": "dwight-pi", "hostname": "dwight-pi"}
+
     with pytest.raises(main.HTTPException) as exc_info:
-        await main.get_node_quote("unknown-node")
+        await main.get_node_quote("dwight-pi", main.QuoteRequest(password="wrong"))
+    assert exc_info.value.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_get_node_quote_returns_503_when_not_configured() -> None:
+    """Test that quote endpoint returns 503 when INTERACTIVE_PASSWORD not set."""
+    # INTERACTIVE_PASSWORD is None by default in tests
+    main.nodes_data["dwight-pi"] = {"name": "dwight-pi", "hostname": "dwight-pi"}
+
+    with pytest.raises(main.HTTPException) as exc_info:
+        await main.get_node_quote("dwight-pi", main.QuoteRequest(password="any"))
+    assert exc_info.value.status_code == 503
+
+
+@pytest.mark.anyio
+async def test_get_node_quote_returns_404_for_unknown_node(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that quote endpoint returns 404 for unknown nodes."""
+    monkeypatch.setattr(main, "INTERACTIVE_PASSWORD", TEST_PASSWORD)
+
+    with pytest.raises(main.HTTPException) as exc_info:
+        await main.get_node_quote("unknown-node", main.QuoteRequest(password=TEST_PASSWORD))
     assert exc_info.value.status_code == 404
 
 
@@ -458,10 +488,9 @@ async def test_get_node_quote_returns_fallback_without_openai(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test that quote endpoint returns fallback quote when OpenAI is not configured."""
-    # Disable OpenAI client
+    monkeypatch.setattr(main, "INTERACTIVE_PASSWORD", TEST_PASSWORD)
     monkeypatch.setattr(main, "openai_client", None)
 
-    # Add a node
     main.nodes_data["dwight-pi"] = {
         "name": "dwight-pi",
         "hostname": "dwight-pi",
@@ -469,7 +498,7 @@ async def test_get_node_quote_returns_fallback_without_openai(
         "memory_percent": 60.0,
     }
 
-    response = await main.get_node_quote("dwight-pi")
+    response = await main.get_node_quote("dwight-pi", main.QuoteRequest(password=TEST_PASSWORD))
 
     assert response["node_name"] == "dwight-pi"
     assert response["character"] == "dwight"
@@ -484,9 +513,9 @@ async def test_get_node_quote_caching(
     """Test that quotes are cached and reused within TTL."""
     fixed_time = 1_700_000_000.0
     monkeypatch.setattr(main.time, "time", lambda: fixed_time)
+    monkeypatch.setattr(main, "INTERACTIVE_PASSWORD", TEST_PASSWORD)
     monkeypatch.setattr(main, "openai_client", None)
 
-    # Add a node
     main.nodes_data["michael-1"] = {
         "name": "michael-1",
         "hostname": "michael-1",
@@ -494,13 +523,15 @@ async def test_get_node_quote_caching(
         "memory_percent": 70.0,
     }
 
+    request = main.QuoteRequest(password=TEST_PASSWORD)
+
     # First call - should not be cached
-    response1 = await main.get_node_quote("michael-1")
+    response1 = await main.get_node_quote("michael-1", request)
     assert response1["cached"] is False
     quote1 = response1["quote"]
 
     # Second call - should be cached
-    response2 = await main.get_node_quote("michael-1")
+    response2 = await main.get_node_quote("michael-1", request)
     assert response2["cached"] is True
     assert response2["quote"] == quote1
     assert "cache_age_seconds" in response2
@@ -513,9 +544,9 @@ async def test_get_node_quote_cache_invalidation_on_metrics_change(
     """Test that cache is invalidated when metrics change significantly."""
     fixed_time = 1_700_000_000.0
     monkeypatch.setattr(main.time, "time", lambda: fixed_time)
+    monkeypatch.setattr(main, "INTERACTIVE_PASSWORD", TEST_PASSWORD)
     monkeypatch.setattr(main, "openai_client", None)
 
-    # Add a node with initial metrics
     main.nodes_data["stanley-pi"] = {
         "name": "stanley-pi",
         "hostname": "stanley-pi",
@@ -523,22 +554,28 @@ async def test_get_node_quote_cache_invalidation_on_metrics_change(
         "memory_percent": 30.0,
     }
 
+    request = main.QuoteRequest(password=TEST_PASSWORD)
+
     # First call
-    response1 = await main.get_node_quote("stanley-pi")
+    response1 = await main.get_node_quote("stanley-pi", request)
     assert response1["cached"] is False
 
     # Update metrics significantly (CPU from 20% to 80%)
     main.nodes_data["stanley-pi"]["cpu_percent"] = 80.0
 
     # Second call - should generate new quote due to metrics change
-    response2 = await main.get_node_quote("stanley-pi")
+    response2 = await main.get_node_quote("stanley-pi", request)
     assert response2["cached"] is False
 
 
 @pytest.mark.anyio
-async def test_get_node_quote_extracts_character_from_node_name() -> None:
+async def test_get_node_quote_extracts_character_from_node_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Test that character is correctly extracted from node name."""
-    # Test various node name formats
+    monkeypatch.setattr(main, "INTERACTIVE_PASSWORD", TEST_PASSWORD)
+    monkeypatch.setattr(main, "openai_client", None)
+
     test_cases = [
         ("dwight-pi", "dwight"),
         ("michael-1", "michael"),
@@ -546,12 +583,14 @@ async def test_get_node_quote_extracts_character_from_node_name() -> None:
         ("PAM-TEST", "pam"),
     ]
 
+    request = main.QuoteRequest(password=TEST_PASSWORD)
+
     for node_name, expected_character in test_cases:
         main.nodes_data[node_name] = {
             "name": node_name,
             "hostname": node_name,
         }
-        response = await main.get_node_quote(node_name)
+        response = await main.get_node_quote(node_name, request)
         assert response["character"] == expected_character, f"Failed for {node_name}"
         main.nodes_data.clear()
         main.quote_cache.clear()

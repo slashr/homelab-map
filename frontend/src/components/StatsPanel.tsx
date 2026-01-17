@@ -104,53 +104,63 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
 }) => {
   const [quote, setQuote] = useState<string | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
+  const [interactiveMode, setInteractiveMode] = useState(false);
+  const [interactivePassword, setInteractivePassword] = useState('');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordError, setPasswordError] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
 
   const selectedNode = selectedNodeId && showDetails ? nodes.find((node) => node.name === selectedNodeId) : null;
 
-  // Fetch AI-generated quote when node is selected
+  // Set static quote when node is selected (no automatic API call)
   useEffect(() => {
     if (!selectedNode) {
       setQuote(null);
       return;
     }
-
-    const abortController = new AbortController();
-    const nodeName = selectedNode.name;
-
-    const fetchQuote = async () => {
-      setQuoteLoading(true);
-      try {
-        const response = await axios.get(`${AGGREGATOR_URL}/api/quote/${nodeName}`, {
-          signal: abortController.signal,
-        });
-        // Only update state if this request wasn't aborted
-        if (!abortController.signal.aborted) {
-          setQuote(response.data.quote);
-        }
-      } catch (error) {
-        // Ignore aborted requests
-        if (axios.isCancel(error)) {
-          return;
-        }
-        // Fallback to static quote on error
-        console.warn('Failed to fetch AI quote, using fallback:', error);
-        if (!abortController.signal.aborted) {
-          setQuote(getCharacterQuote(getCharacterFromNodeName(nodeName)));
-        }
-      } finally {
-        if (!abortController.signal.aborted) {
-          setQuoteLoading(false);
-        }
-      }
-    };
-
-    fetchQuote();
-
-    // Cleanup: abort request if node selection changes
-    return () => {
-      abortController.abort();
-    };
+    // Always show static quote by default
+    setQuote(getCharacterQuote(getCharacterFromNodeName(selectedNode.name)));
   }, [selectedNode]);
+
+  // Handle password submission - validate via backend
+  const handlePasswordSubmit = async () => {
+    const testNode = selectedNode?.name || nodes[0]?.name || 'michael-pi';
+    try {
+      await axios.post(`${AGGREGATOR_URL}/api/quote/${testNode}`, {
+        password: passwordInput
+      });
+      // Password valid - enable interactive mode
+      setInteractivePassword(passwordInput);
+      setInteractiveMode(true);
+      setShowPasswordModal(false);
+      setPasswordError(false);
+      setPasswordInput('');
+    } catch {
+      setPasswordError(true);
+    }
+  };
+
+  // Fetch AI quote on demand (interactive mode)
+  const fetchAIQuote = async () => {
+    if (!selectedNode || !interactivePassword) return;
+
+    setQuoteLoading(true);
+    try {
+      const response = await axios.post(`${AGGREGATOR_URL}/api/quote/${selectedNode.name}`, {
+        password: interactivePassword
+      });
+      setQuote(response.data.quote);
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        // Password invalidated - exit interactive mode
+        setInteractiveMode(false);
+        setInteractivePassword('');
+      }
+      console.warn('Failed to fetch AI quote:', error);
+    } finally {
+      setQuoteLoading(false);
+    }
+  };
 
   if (!stats) {
     return null;
@@ -173,16 +183,25 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
           <div className="stats-section node-details">
             <div className="node-details-header">
               <h2>Node Details</h2>
-              {onNodeDeselect && (
+              <div className="node-details-header-buttons">
                 <button
-                  className="node-details-close"
-                  onClick={onNodeDeselect}
-                  aria-label="Close node details"
-                  title="Close"
+                  className={`interactive-mode-toggle ${interactiveMode ? 'active' : ''}`}
+                  onClick={() => interactiveMode ? setInteractiveMode(false) : setShowPasswordModal(true)}
+                  title={interactiveMode ? 'Disable interactive mode' : 'Enable interactive mode'}
                 >
-                  ×
+                  {interactiveMode ? '🎭' : '🔒'}
                 </button>
-              )}
+                {onNodeDeselect && (
+                  <button
+                    className="node-details-close"
+                    onClick={onNodeDeselect}
+                    aria-label="Close node details"
+                    title="Close"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             </div>
             
             <div className="node-details-content">
@@ -209,11 +228,20 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
             <div className="node-quote">
               <div className={`node-quote-text ${quoteLoading ? 'loading' : ''}`}>
                 {quoteLoading ? (
-                  <span className="quote-loading">Generating quote...</span>
+                  <span className="quote-loading">Thinking...</span>
                 ) : (
                   `"${quote || getCharacterQuote(getCharacterFromNodeName(selectedNode.name))}"`
                 )}
               </div>
+              {interactiveMode && (
+                <button
+                  className="ask-quote-button"
+                  onClick={fetchAIQuote}
+                  disabled={quoteLoading}
+                >
+                  {quoteLoading ? 'Thinking...' : `How do you feel, ${getCharacterFromNodeName(selectedNode.name)}?`}
+                </button>
+              )}
             </div>
             
             {selectedNode.location && (
@@ -500,6 +528,59 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
             ))}
           </div>
         </>
+      )}
+
+      {/* Password Modal */}
+      {showPasswordModal && (
+        <div className="password-modal-overlay" onClick={() => {
+          setShowPasswordModal(false);
+          setPasswordError(false);
+          setPasswordInput('');
+        }}>
+          <div className="password-modal" onClick={e => e.stopPropagation()}>
+            <h4>Enter Password</h4>
+            <p className="password-modal-hint">Enable interactive AI quotes</p>
+            <input
+              type="password"
+              placeholder="Password"
+              autoFocus
+              value={passwordInput}
+              className={passwordError ? 'error' : ''}
+              onChange={(e) => {
+                setPasswordInput(e.target.value);
+                setPasswordError(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handlePasswordSubmit();
+                } else if (e.key === 'Escape') {
+                  setShowPasswordModal(false);
+                  setPasswordError(false);
+                  setPasswordInput('');
+                }
+              }}
+            />
+            {passwordError && <span className="error-text">Incorrect password</span>}
+            <div className="modal-buttons">
+              <button
+                className="modal-button cancel"
+                onClick={() => {
+                  setShowPasswordModal(false);
+                  setPasswordError(false);
+                  setPasswordInput('');
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="modal-button submit"
+                onClick={handlePasswordSubmit}
+              >
+                Enter
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
