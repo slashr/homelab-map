@@ -614,6 +614,15 @@
   color: #555;
 }
 
+.node-quote-text.loading {
+  opacity: 0.7;
+}
+
+.quote-loading {
+  font-style: normal;
+  opacity: 0.6;
+}
+
 .stats-panel.dark .node-details-title-text h3 {
   color: #ffffff;
 }

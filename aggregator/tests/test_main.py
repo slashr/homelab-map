@@ -23,9 +23,11 @@ def reset_state() -> Iterable[None]:
     """Ensure each test runs with a clean in-memory data store."""
     main.nodes_data.clear()
     main.connections_data.clear()
+    main.quote_cache.clear()
     yield
     main.nodes_data.clear()
     main.connections_data.clear()
+    main.quote_cache.clear()
 
 
 def test_load_node_timeout_default_and_override(
@@ -438,3 +440,150 @@ async def test_node_replacement_preserves_location_data(
     # Location should be preserved from original node
     assert main.nodes_data["node-1"]["lat"] == pytest.approx(37.7749)
     assert main.nodes_data["node-1"]["lon"] == pytest.approx(-122.4194)
+
+
+# Quote endpoint tests
+
+
+@pytest.mark.anyio
+async def test_get_node_quote_returns_404_for_unknown_node() -> None:
+    """Test that quote endpoint returns 404 for unknown nodes."""
+    with pytest.raises(main.HTTPException) as exc_info:
+        await main.get_node_quote("unknown-node")
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_get_node_quote_returns_fallback_without_openai(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that quote endpoint returns fallback quote when OpenAI is not configured."""
+    # Disable OpenAI client
+    monkeypatch.setattr(main, "openai_client", None)
+
+    # Add a node
+    main.nodes_data["dwight-pi"] = {
+        "name": "dwight-pi",
+        "hostname": "dwight-pi",
+        "cpu_percent": 45.0,
+        "memory_percent": 60.0,
+    }
+
+    response = await main.get_node_quote("dwight-pi")
+
+    assert response["node_name"] == "dwight-pi"
+    assert response["character"] == "dwight"
+    assert response["quote"] == main.FALLBACK_QUOTES["dwight"]
+    assert response["cached"] is False
+
+
+@pytest.mark.anyio
+async def test_get_node_quote_caching(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that quotes are cached and reused within TTL."""
+    fixed_time = 1_700_000_000.0
+    monkeypatch.setattr(main.time, "time", lambda: fixed_time)
+    monkeypatch.setattr(main, "openai_client", None)
+
+    # Add a node
+    main.nodes_data["michael-1"] = {
+        "name": "michael-1",
+        "hostname": "michael-1",
+        "cpu_percent": 50.0,
+        "memory_percent": 70.0,
+    }
+
+    # First call - should not be cached
+    response1 = await main.get_node_quote("michael-1")
+    assert response1["cached"] is False
+    quote1 = response1["quote"]
+
+    # Second call - should be cached
+    response2 = await main.get_node_quote("michael-1")
+    assert response2["cached"] is True
+    assert response2["quote"] == quote1
+    assert "cache_age_seconds" in response2
+
+
+@pytest.mark.anyio
+async def test_get_node_quote_cache_invalidation_on_metrics_change(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that cache is invalidated when metrics change significantly."""
+    fixed_time = 1_700_000_000.0
+    monkeypatch.setattr(main.time, "time", lambda: fixed_time)
+    monkeypatch.setattr(main, "openai_client", None)
+
+    # Add a node with initial metrics
+    main.nodes_data["stanley-pi"] = {
+        "name": "stanley-pi",
+        "hostname": "stanley-pi",
+        "cpu_percent": 20.0,
+        "memory_percent": 30.0,
+    }
+
+    # First call
+    response1 = await main.get_node_quote("stanley-pi")
+    assert response1["cached"] is False
+
+    # Update metrics significantly (CPU from 20% to 80%)
+    main.nodes_data["stanley-pi"]["cpu_percent"] = 80.0
+
+    # Second call - should generate new quote due to metrics change
+    response2 = await main.get_node_quote("stanley-pi")
+    assert response2["cached"] is False
+
+
+@pytest.mark.anyio
+async def test_get_node_quote_extracts_character_from_node_name() -> None:
+    """Test that character is correctly extracted from node name."""
+    # Test various node name formats
+    test_cases = [
+        ("dwight-pi", "dwight"),
+        ("michael-1", "michael"),
+        ("jim-server-2", "jim"),
+        ("PAM-TEST", "pam"),
+    ]
+
+    for node_name, expected_character in test_cases:
+        main.nodes_data[node_name] = {
+            "name": node_name,
+            "hostname": node_name,
+        }
+        response = await main.get_node_quote(node_name)
+        assert response["character"] == expected_character, f"Failed for {node_name}"
+        main.nodes_data.clear()
+        main.quote_cache.clear()
+
+
+def test_compute_metrics_hash_consistency() -> None:
+    """Test that metrics hash is consistent for same values."""
+    node_data = {
+        "cpu_percent": 45.0,
+        "memory_percent": 67.0,
+        "uptime_seconds": 86400 * 5,  # 5 days
+    }
+
+    hash1 = main._compute_metrics_hash(node_data)
+    hash2 = main._compute_metrics_hash(node_data)
+    assert hash1 == hash2
+
+
+def test_compute_metrics_hash_rounds_values() -> None:
+    """Test that small metric changes don't affect hash."""
+    node_data1 = {"cpu_percent": 45.0, "memory_percent": 67.0}
+    node_data2 = {"cpu_percent": 48.0, "memory_percent": 63.0}  # Within rounding
+
+    hash1 = main._compute_metrics_hash(node_data1)
+    hash2 = main._compute_metrics_hash(node_data2)
+    assert hash1 == hash2  # Both round to 50% CPU, 70% memory
+
+
+def test_format_uptime() -> None:
+    """Test uptime formatting."""
+    assert main._format_uptime(None) == "unknown"
+    assert main._format_uptime(-1) == "unknown"
+    assert main._format_uptime(3600) == "1 hours"  # 1 hour
+    assert main._format_uptime(86400) == "1 days"  # 1 day
+    assert main._format_uptime(86400 * 5 + 3600 * 3) == "5 days"  # 5 days
