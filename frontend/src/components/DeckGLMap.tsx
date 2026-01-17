@@ -6,6 +6,7 @@ import { FlyToInterpolator } from '@deck.gl/core';
 import type { PickingInfo } from '@deck.gl/core';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Node, Connection } from '../types';
+import { getLatencyColor, getLatencyQuality, getAvatarUrl } from '../utils/mapUtils';
 import './DeckGLMap.css';
 
 interface DeckGLMapProps {
@@ -62,52 +63,6 @@ const INITIAL_VIEW_STATE: ViewState = {
   bearing: 0,
 };
 
-const getLatencyColor = (latency: number, darkMode: boolean): [number, number, number, number] => {
-  if (latency < 20) {
-    return darkMode ? [0, 245, 212, 220] : [3, 201, 136, 220];
-  }
-  if (latency < 60) {
-    return darkMode ? [249, 255, 108, 220] : [244, 162, 89, 220];
-  }
-  if (latency < 120) {
-    return darkMode ? [255, 140, 66, 220] : [255, 130, 67, 220];
-  }
-  return darkMode ? [255, 63, 129, 220] : [255, 77, 109, 220];
-};
-
-const getLatencyQuality = (latency: number): string => {
-  if (latency < 20) return 'Excellent';
-  if (latency < 60) return 'Good';
-  if (latency < 120) return 'Fair';
-  return 'Poor';
-};
-
-// Generate avatar URL for nodes
-const getAvatarUrl = (nodeName: string): string => {
-  const character = nodeName.split('-')[0].toLowerCase();
-  const nameMap: Record<string, string> = {
-    michael: 'Michael+Scott',
-    jim: 'Jim+Halpert',
-    dwight: 'Dwight+Schrute',
-    angela: 'Angela+Martin',
-    stanley: 'Stanley+Hudson',
-    phyllis: 'Phyllis+Vance',
-    toby: 'Toby+Flenderson',
-  };
-  const colorMap: Record<string, string> = {
-    michael: '667eea',
-    jim: '4285F4',
-    dwight: 'FFC107',
-    angela: '9c27b0',
-    stanley: 'ff9800',
-    phyllis: '4caf50',
-    toby: '795548',
-  };
-
-  const name = nameMap[character] || character;
-  const color = colorMap[character] || '607D8B';
-  return `https://ui-avatars.com/api/?name=${name}&size=128&background=${color}&color=fff&bold=true&rounded=true`;
-};
 
 const DeckGLMap: React.FC<DeckGLMapProps> = ({
   nodes,
