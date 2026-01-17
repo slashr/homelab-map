@@ -127,7 +127,7 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
     };
 
     fetchQuote();
-  }, [selectedNode?.name]);
+  }, [selectedNode]);
 
   if (!stats) {
     return null;
