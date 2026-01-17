@@ -2,6 +2,10 @@ export const getCharacterFromNodeName = (nodeName: string): string => {
   return nodeName.split('-')[0].toLowerCase();
 };
 
+export const capitalizeCharacterName = (character: string): string => {
+  return character.charAt(0).toUpperCase() + character.slice(1);
+};
+
 export const getCharacterImage = (nodeName: string): string => {
   const character = getCharacterFromNodeName(nodeName);
   return `/characters/${character}.png`;

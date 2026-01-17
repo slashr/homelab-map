@@ -1030,6 +1030,11 @@
   cursor: not-allowed;
 }
 
+.ask-quote-button.rate-limited {
+  background: linear-gradient(135deg, #6b7280, #4b5563);
+  opacity: 0.7;
+}
+
 /* Password Modal */
 .password-modal-overlay {
   position: fixed;

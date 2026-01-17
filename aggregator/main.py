@@ -311,6 +311,7 @@ class NodeData(BaseModel):
 class QuoteRequest(BaseModel):
     """Request body for interactive quote generation"""
     password: str
+    force_new: bool = False  # If true, bypass cache and generate a fresh quote
 
 
 class NodeStatus(BaseModel):
@@ -764,11 +765,11 @@ async def get_node_quote(node_name: str, request: QuoteRequest):
     # Extract character name from node_name (e.g., "dwight-pi" -> "dwight")
     character = node_name.split('-')[0].lower()
 
-    # Check cache
+    # Check cache (skip if force_new is requested)
     current_time = time.time()
     metrics_hash = _compute_metrics_hash(node_data)
 
-    if node_name in quote_cache:
+    if not request.force_new and node_name in quote_cache:
         cached = quote_cache[node_name]
         age = current_time - cached.generated_at
 
