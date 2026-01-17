@@ -256,6 +256,30 @@ def _collect_process_count() -> dict:
     return result
 
 
+def _discover_public_ip() -> Optional[str]:
+    """Discover actual public IP via external service"""
+    try:
+        response = requests.get('https://api.ipify.org', timeout=5)
+        if response.status_code == 200:
+            return response.text.strip()
+    except Exception as e:
+        logger.debug(f"Failed to discover public IP: {e}")
+    return None
+
+
+def _is_private_ip(ip: str) -> bool:
+    """Check if IP is private/internal (RFC1918, Tailscale, etc.)"""
+    if not ip:
+        return True
+    # Common private ranges: 10.x, 172.16-31.x, 192.168.x, 100.64-127.x (CGNAT/Tailscale)
+    return (ip.startswith('10.') or
+            ip.startswith('192.168.') or
+            ip.startswith('172.16.') or ip.startswith('172.17.') or
+            ip.startswith('172.18.') or ip.startswith('172.19.') or
+            ip.startswith('172.2') or ip.startswith('172.30.') or ip.startswith('172.31.') or
+            ip.startswith('100.'))
+
+
 def _detect_ip_geolocation(ip: str) -> Optional[dict]:
     """Detect location from IP address using ip-api.com"""
     try:
@@ -286,14 +310,19 @@ def _detect_node_location(node_name: str, external_ip: Optional[str] = None, int
     if not ENABLE_AUTO_GEOLOCATION:
         return None
 
-    # Use IP geolocation API (try external IP first, then internal)
+    # If provided IPs are private, discover actual public IP
     ip_to_try = external_ip or internal_ip
+    if not ip_to_try or _is_private_ip(ip_to_try):
+        public_ip = _discover_public_ip()
+        if public_ip:
+            ip_to_try = public_ip
+
     if ip_to_try:
         location = _detect_ip_geolocation(ip_to_try)
         if location:
             _geolocation_cache[node_name] = location
             return location
-    
+
     # No location found
     return None
 
