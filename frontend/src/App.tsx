@@ -19,6 +19,7 @@ function App() {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [stats, setStats] = useState<ClusterStats | null>(null);
   const [connections, setConnections] = useState<Connection[]>([]);
+  const [connectionsTotal, setConnectionsTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selection, setSelection] = useState<{ id: string; token: number } | null>(null);
@@ -132,6 +133,7 @@ function App() {
 
       setConnections(prevConnections => {
         const newConnections = connectionsResponse.data;
+        setConnectionsTotal(newConnections.length);
         // Quick comparison: check length
         if (prevConnections.length !== newConnections.length) return newConnections;
         
@@ -322,6 +324,7 @@ function App() {
             connections={connections}
             darkMode={darkMode}
             performanceMode={performanceMode}
+            connectionsTotal={connectionsTotal}
             selectedNodeId={selection?.id || null}
             selectionToken={selection?.token || 0}
             onNodeSelect={handleNodeSelect}

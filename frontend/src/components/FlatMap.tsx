@@ -14,6 +14,7 @@ interface FlatMapProps {
   connections: Connection[];
   darkMode: boolean;
   performanceMode?: boolean;
+  connectionsTotal?: number;
   selectedNodeId: string | null;
   selectionToken: number;
   onNodeSelect?: (nodeName: string) => void;
@@ -30,6 +31,9 @@ interface FlatMapConnectionDatum {
   latency: number;
   label: string;
 }
+
+const MAX_RENDERED_CONNECTIONS = 150;
+const MAX_ANIMATED_CONNECTIONS = 200;
 
 const getCharacterImage = (nodeName: string): string => {
   const character = nodeName.split('-')[0].toLowerCase();
@@ -80,6 +84,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
   connections,
   darkMode,
   performanceMode = false,
+  connectionsTotal,
   selectedNodeId,
   selectionToken,
   onNodeSelect,
@@ -209,11 +214,12 @@ const FlatMap: React.FC<FlatMapProps> = ({
     if (!performanceMode) {
       return mapped;
     }
-    const MAX_RENDERED_CONNECTIONS = 150;
     return mapped
       .sort((a, b) => a.latency - b.latency)
       .slice(0, MAX_RENDERED_CONNECTIONS);
   }, [connections, nodeLookup, darkMode, performanceMode]);
+
+  const totalConnections = connectionsTotal ?? connections.length;
 
   const countryPolygons = useMemo(() => {
     const geoJson = feature(
@@ -310,7 +316,6 @@ const FlatMap: React.FC<FlatMapProps> = ({
       return;
     }
 
-    const MAX_ANIMATED_CONNECTIONS = 200;
     if (flatMapConnections.length > MAX_ANIMATED_CONNECTIONS) {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
@@ -633,8 +638,8 @@ const FlatMap: React.FC<FlatMapProps> = ({
       const forwardGradientId = `gradient-forward-${index}`;
       const reverseGradientId = `gradient-reverse-${index}`;
 
-      let forwardFlow: any;
-      let reverseFlow: any;
+      let forwardFlow: ReturnType<typeof select>;
+      let reverseFlow: ReturnType<typeof select> | null = null;
 
       if (!useSimpleLines) {
         // Forward flow gradient (source to target) - aligned along the line
@@ -940,6 +945,12 @@ const FlatMap: React.FC<FlatMapProps> = ({
             height={mapSize.height}
             className="flat-map-svg"
           />
+        )}
+
+        {performanceMode && totalConnections > MAX_RENDERED_CONNECTIONS && (
+          <div className={`connection-cap-indicator ${darkMode ? 'dark' : 'light'}`}>
+            Showing {MAX_RENDERED_CONNECTIONS} / {totalConnections} connections
+          </div>
         )}
 
         {hoveredArc && tooltipPosition && (
