@@ -13,7 +13,7 @@ from datetime import datetime
 from dataclasses import dataclass
 
 from fastapi import FastAPI, HTTPException
-from openai import OpenAI
+from openai import AsyncOpenAI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -24,11 +24,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize OpenAI client (uses OPENAI_API_KEY env var)
-openai_client: Optional[OpenAI] = None
+# Initialize async OpenAI client (uses OPENAI_API_KEY env var)
+openai_client: Optional[AsyncOpenAI] = None
 if os.getenv("OPENAI_API_KEY"):
-    openai_client = OpenAI()
-    logger.info("OpenAI client initialized")
+    openai_client = AsyncOpenAI()
+    logger.info("AsyncOpenAI client initialized")
 else:
     logger.warning("OPENAI_API_KEY not set, quote generation will use fallback quotes")
 
@@ -696,7 +696,7 @@ async def _generate_quote(character: str, node_name: str, node_data: dict) -> st
 1-2 sentences max. Output only the quote."""
 
     try:
-        response = openai_client.chat.completions.create(
+        response = await openai_client.chat.completions.create(
             model="gpt-4.1-mini",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=100,

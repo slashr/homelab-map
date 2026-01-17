@@ -112,21 +112,42 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
       return;
     }
 
+    const abortController = new AbortController();
+    const nodeName = selectedNode.name;
+
     const fetchQuote = async () => {
       setQuoteLoading(true);
       try {
-        const response = await axios.get(`${AGGREGATOR_URL}/api/quote/${selectedNode.name}`);
-        setQuote(response.data.quote);
+        const response = await axios.get(`${AGGREGATOR_URL}/api/quote/${nodeName}`, {
+          signal: abortController.signal,
+        });
+        // Only update state if this request wasn't aborted
+        if (!abortController.signal.aborted) {
+          setQuote(response.data.quote);
+        }
       } catch (error) {
+        // Ignore aborted requests
+        if (axios.isCancel(error)) {
+          return;
+        }
         // Fallback to static quote on error
         console.warn('Failed to fetch AI quote, using fallback:', error);
-        setQuote(getCharacterQuote(getCharacterFromNodeName(selectedNode.name)));
+        if (!abortController.signal.aborted) {
+          setQuote(getCharacterQuote(getCharacterFromNodeName(nodeName)));
+        }
       } finally {
-        setQuoteLoading(false);
+        if (!abortController.signal.aborted) {
+          setQuoteLoading(false);
+        }
       }
     };
 
     fetchQuote();
+
+    // Cleanup: abort request if node selection changes
+    return () => {
+      abortController.abort();
+    };
   }, [selectedNode]);
 
   if (!stats) {
