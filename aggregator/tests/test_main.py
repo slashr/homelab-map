@@ -573,7 +573,7 @@ def test_compute_metrics_hash_consistency() -> None:
 def test_compute_metrics_hash_rounds_values() -> None:
     """Test that small metric changes don't affect hash."""
     # Values within same rounding buckets:
-    # CPU: 51-54 -> 50, Memory: 71-74 -> 70, Temp: 41-44 -> 40, Load: 1.1-1.2 -> 1.0
+    # CPU: 51-54 -> 50, Memory: 71-74 -> 70, Temp: 41-42 -> 40, Load: 1.1-1.2 -> 1.0
     node_data1 = {
         "cpu_percent": 51.0,
         "memory_percent": 71.0,
@@ -583,7 +583,7 @@ def test_compute_metrics_hash_rounds_values() -> None:
     node_data2 = {
         "cpu_percent": 54.0,
         "memory_percent": 74.0,
-        "cpu_temp_celsius": 44.0,
+        "cpu_temp_celsius": 42.0,  # 42/5=8.4 rounds to 8, 8*5=40
         "load_avg_1m": 1.2,
     }
 
