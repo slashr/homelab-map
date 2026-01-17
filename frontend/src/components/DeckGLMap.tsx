@@ -54,10 +54,12 @@ const MAP_STYLES = {
 
 const MAX_RENDERED_CONNECTIONS = 200;
 
-// Maroon border color for node icons (used in data URL)
-const MAROON_COLOR = '#800020';
+// Border colors for node icons - black with white outline for visibility in both modes
+const BORDER_FILL_COLOR = '#000000';
+const BORDER_OUTLINE_COLOR = '#FFFFFF';
+const BORDER_OUTLINE_WIDTH = 6;
 
-// Create a data URL for a solid maroon square (used as border background)
+// Create a data URL for a black square with white outline (visible in both light and dark modes)
 const createSquareBorderIcon = (): string => {
   const size = 128;
   const canvas = document.createElement('canvas');
@@ -65,8 +67,12 @@ const createSquareBorderIcon = (): string => {
   canvas.height = size;
   const ctx = canvas.getContext('2d');
   if (ctx) {
-    ctx.fillStyle = MAROON_COLOR;
+    // Draw white outline first (larger square)
+    ctx.fillStyle = BORDER_OUTLINE_COLOR;
     ctx.fillRect(0, 0, size, size);
+    // Draw black fill on top (smaller square, leaving white border)
+    ctx.fillStyle = BORDER_FILL_COLOR;
+    ctx.fillRect(BORDER_OUTLINE_WIDTH, BORDER_OUTLINE_WIDTH, size - BORDER_OUTLINE_WIDTH * 2, size - BORDER_OUTLINE_WIDTH * 2);
   }
   return canvas.toDataURL('image/png');
 };
@@ -224,7 +230,7 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
         }
       },
     }),
-    // Node border layer (maroon square behind icons)
+    // Node border layer (black square with white outline, visible in both light and dark modes)
     new IconLayer<NodeDatum>({
       id: 'nodes-border',
       data: nodeData,
