@@ -127,7 +127,8 @@ const FlatMap: React.FC<FlatMapProps> = ({
     };
   }, [hoveredArc]);
 
-  const nodesWithLocation = useMemo(() => {
+  // Group nodes by city/location for hub-and-spoke layout
+  const cityGroups = useMemo(() => {
     // First, filter nodes with valid locations
     const validNodes = nodes
       .filter(
@@ -143,69 +144,121 @@ const FlatMap: React.FC<FlatMapProps> = ({
         lng: node.lon as number,
       }));
     
-    // Group nodes by approximate location (within 0.01 degrees ~ 1km)
+    // Group nodes by location name (city) - use the location field if available
     const locationGroups = new Map<string, typeof validNodes>();
     validNodes.forEach((node) => {
-      // Round to 2 decimal places to group nearby nodes
-      const key = `${Math.round(node.lat * 100) / 100},${Math.round(node.lng * 100) / 100}`;
+      // Use location name if available, otherwise group by rounded coords
+      const key = node.location || `${Math.round(node.lat * 10) / 10},${Math.round(node.lng * 10) / 10}`;
       if (!locationGroups.has(key)) {
         locationGroups.set(key, []);
       }
       locationGroups.get(key)!.push(node);
     });
     
-    // Apply visual offset to nodes sharing the same location
-    const result: typeof validNodes = [];
-    locationGroups.forEach((groupNodes) => {
-      if (groupNodes.length === 1) {
-        // Single node, no offset needed
-        result.push(groupNodes[0]);
-      } else {
-        // Multiple nodes at same location - spread them in a circle
-        const radius = 0.5; // degrees offset (visible at map scale)
-        groupNodes.forEach((node, index) => {
-          const angle = (2 * Math.PI * index) / groupNodes.length;
-          result.push({
-            ...node,
-            lat: node.lat + radius * Math.sin(angle),
-            lng: node.lng + radius * Math.cos(angle),
-          });
+    // Create city hub data with original center and spread nodes
+    const cityData: {
+      cityName: string;
+      centerLat: number;
+      centerLng: number;
+      nodes: typeof validNodes;
+    }[] = [];
+    
+    locationGroups.forEach((groupNodes, cityName) => {
+      // Calculate city center as the average of all node positions
+      const centerLat = groupNodes.reduce((sum, n) => sum + n.lat, 0) / groupNodes.length;
+      const centerLng = groupNodes.reduce((sum, n) => sum + n.lng, 0) / groupNodes.length;
+      
+      // Spread nodes in a circle around the city center
+      // Use larger radius for more nodes, minimum radius for visibility
+      const baseRadius = 2.5; // degrees offset (visible at map scale)
+      const radius = Math.max(baseRadius, groupNodes.length * 0.8);
+      
+      const spreadNodes = groupNodes.map((node, index) => {
+        // Start from top (-90°) and spread clockwise
+        const startAngle = -Math.PI / 2;
+        const angle = startAngle + (2 * Math.PI * index) / groupNodes.length;
+        return {
+          ...node,
+          // Store original lat/lng for connection calculations
+          originalLat: node.lat,
+          originalLng: node.lng,
+          // New display position spread around the city center
+          lat: centerLat + radius * Math.sin(angle),
+          lng: centerLng + radius * Math.cos(angle),
+        };
+      });
+      
+      cityData.push({
+        cityName,
+        centerLat,
+        centerLng,
+        nodes: spreadNodes,
+      });
+    });
+    
+    return cityData;
+  }, [nodes]);
+
+  // Flatten nodes for rendering, with display positions
+  const nodesWithLocation = useMemo(() => {
+    return cityGroups.flatMap(city => city.nodes);
+  }, [cityGroups]);
+
+  // Lookup to find which city a node belongs to (for routing connections through city centers)
+  const nodeToCityLookup = useMemo(() => {
+    const map = new Map<string, { centerLat: number; centerLng: number; cityName: string }>();
+    cityGroups.forEach((city) => {
+      city.nodes.forEach((node) => {
+        map.set(node.name, {
+          centerLat: city.centerLat,
+          centerLng: city.centerLng,
+          cityName: city.cityName,
         });
+      });
+    });
+    return map;
+  }, [cityGroups]);
+
+  // Connections between city centers (for inter-city connections only)
+  const flatMapConnections = useMemo(() => {
+    // De-duplicate connections at the city level
+    const cityConnectionSet = new Set<string>();
+    const result: FlatMapConnectionDatum[] = [];
+    
+    connections.forEach((conn) => {
+      const sourceCity = nodeToCityLookup.get(conn.source_node);
+      const targetCity = nodeToCityLookup.get(conn.target_node);
+      
+      if (!sourceCity || !targetCity) {
+        return;
       }
+      
+      // Skip intra-city connections (same city)
+      if (sourceCity.cityName === targetCity.cityName) {
+        return;
+      }
+      
+      // Create a unique key for this city-to-city connection (bidirectional)
+      const cityPair = [sourceCity.cityName, targetCity.cityName].sort().join('|');
+      if (cityConnectionSet.has(cityPair)) {
+        return; // Already have this city-to-city connection
+      }
+      cityConnectionSet.add(cityPair);
+      
+      const colors = getLatencyColor(conn.latency_ms, darkMode);
+      result.push({
+        startLat: sourceCity.centerLat,
+        startLng: sourceCity.centerLng,
+        endLat: targetCity.centerLat,
+        endLng: targetCity.centerLng,
+        color: colors,
+        latency: conn.latency_ms,
+        label: `${sourceCity.cityName} ↔ ${targetCity.cityName}`,
+      });
     });
     
     return result;
-  }, [nodes]);
-
-  const nodeLookup = useMemo(() => {
-    const map = new Map<string, { lat: number; lng: number }>();
-    nodesWithLocation.forEach((node) => {
-      map.set(node.name, { lat: node.lat, lng: node.lng });
-    });
-    return map;
-  }, [nodesWithLocation]);
-
-  const flatMapConnections = useMemo(() => {
-    return connections
-      .map((conn) => {
-        const source = nodeLookup.get(conn.source_node);
-        const target = nodeLookup.get(conn.target_node);
-        if (!source || !target) {
-          return null;
-        }
-        const colors = getLatencyColor(conn.latency_ms, darkMode);
-        return {
-          startLat: source.lat,
-          startLng: source.lng,
-          endLat: target.lat,
-          endLng: target.lng,
-          color: colors,
-          latency: conn.latency_ms,
-          label: `${conn.source_node} → ${conn.target_node}`,
-        } as FlatMapConnectionDatum;
-      })
-      .filter((value): value is FlatMapConnectionDatum => Boolean(value));
-  }, [connections, nodeLookup, darkMode]);
+  }, [connections, nodeToCityLookup, darkMode]);
 
   const countryPolygons = useMemo(() => {
     const geoJson = feature(
@@ -714,6 +767,54 @@ const FlatMap: React.FC<FlatMapProps> = ({
         });
     });
 
+    // Draw city hubs and spoke lines connecting city centers to nodes
+    const hubsGroup = mapContent.append('g').attr('class', 'city-hubs');
+    const spokesGroup = mapContent.append('g').attr('class', 'spoke-lines');
+    
+    cityGroups.forEach((city) => {
+      const centerCoords = projection([city.centerLng, city.centerLat]);
+      if (!centerCoords) return;
+
+      // Draw city hub marker (small circle at city center)
+      hubsGroup
+        .append('circle')
+        .attr('class', 'city-hub-marker')
+        .attr('cx', centerCoords[0])
+        .attr('cy', centerCoords[1])
+        .attr('r', 6)
+        .attr('fill', darkMode ? 'rgba(100, 180, 255, 0.9)' : 'rgba(50, 120, 200, 0.9)')
+        .attr('stroke', darkMode ? 'rgba(150, 200, 255, 0.6)' : 'rgba(30, 80, 150, 0.6)')
+        .attr('stroke-width', 2);
+
+      // Draw city name label near hub
+      hubsGroup
+        .append('text')
+        .attr('class', 'city-hub-label')
+        .attr('x', centerCoords[0])
+        .attr('y', centerCoords[1] - 12)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '11px')
+        .attr('font-weight', '600')
+        .attr('fill', darkMode ? 'rgba(200, 220, 255, 0.9)' : 'rgba(30, 60, 120, 0.9)')
+        .text(city.cityName);
+
+      // Draw spoke lines from city center to each node
+      city.nodes.forEach((node) => {
+        const nodeCoords = projection([node.lng, node.lat]);
+        if (!nodeCoords) return;
+
+        // Spoke line with gradient
+        spokesGroup
+          .append('path')
+          .attr('class', 'spoke-line')
+          .attr('d', `M ${centerCoords[0]},${centerCoords[1]} L ${nodeCoords[0]},${nodeCoords[1]}`)
+          .attr('stroke', darkMode ? 'rgba(100, 180, 255, 0.5)' : 'rgba(50, 120, 200, 0.5)')
+          .attr('stroke-width', 1.5)
+          .attr('stroke-dasharray', '4,4')
+          .attr('fill', 'none');
+      });
+    });
+
     // Draw capital labels
     const labelsGroup = mapContent.append('g').attr('class', 'labels');
     capitalLabels.forEach((label) => {
@@ -827,7 +928,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
       .attr('height', 48)
       .attr('rx', 8)
       .attr('ry', 8);
-  }, [path, projection, mapSize, countryPolygons, flatMapConnections, nodesWithLocation, selectedNodeId, darkMode, onNodeSelect, zoomTransform]);
+  }, [path, projection, mapSize, countryPolygons, flatMapConnections, nodesWithLocation, cityGroups, selectedNodeId, darkMode, onNodeSelect, zoomTransform]);
 
   const handleMapClick = useCallback((event: React.MouseEvent) => {
     const target = event.target as Element;
