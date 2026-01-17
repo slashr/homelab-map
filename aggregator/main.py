@@ -622,14 +622,14 @@ async def get_cluster_stats():
 
 def _compute_metrics_hash(node_data: dict) -> str:
     """Compute a hash of key metrics to detect significant changes"""
-    # Round metrics to avoid hash changes from minor fluctuations
+    # Use floor division to bucket metrics - avoids cache invalidation on minor changes
     # Use `or 0` to handle None values (nodes may have missing metrics)
-    cpu = round((node_data.get('cpu_percent') or 0) / 10) * 10  # Round to nearest 10%
-    mem = round((node_data.get('memory_percent') or 0) / 10) * 10
+    cpu = int((node_data.get('cpu_percent') or 0) / 10) * 10  # Floor to 10% bucket
+    mem = int((node_data.get('memory_percent') or 0) / 10) * 10
     uptime_days = int((node_data.get('uptime_seconds') or 0) / 86400)  # Days
     # Include temp and load since they're used in the quote prompt
-    temp = round((node_data.get('cpu_temp_celsius') or 0) / 5) * 5  # Round to nearest 5°C
-    load = round((node_data.get('load_avg_1m') or 0) * 2) / 2  # Round to nearest 0.5
+    temp = int((node_data.get('cpu_temp_celsius') or 0) / 5) * 5  # Floor to 5°C bucket
+    load = int((node_data.get('load_avg_1m') or 0) * 2) / 2  # Floor to 0.5 bucket
 
     key = f"{cpu}:{mem}:{uptime_days}:{temp}:{load}"
     return hashlib.md5(key.encode()).hexdigest()[:8]

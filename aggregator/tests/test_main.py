@@ -587,10 +587,10 @@ def test_compute_metrics_hash_handles_none_values() -> None:
     assert len(result) == 8  # MD5 hex truncated to 8 chars
 
 
-def test_compute_metrics_hash_rounds_values() -> None:
-    """Test that small metric changes don't affect hash."""
-    # Values within same rounding buckets:
-    # CPU: 51-54 -> 50, Memory: 71-74 -> 70, Temp: 41-42 -> 40, Load: 1.1-1.2 -> 1.0
+def test_compute_metrics_hash_floors_values() -> None:
+    """Test that small metric changes don't affect hash (using floor division)."""
+    # Values within same floor buckets:
+    # CPU: 50-59 -> 50, Memory: 70-79 -> 70, Temp: 40-44 -> 40, Load: 1.0-1.49 -> 1.0
     node_data1 = {
         "cpu_percent": 51.0,
         "memory_percent": 71.0,
@@ -598,10 +598,10 @@ def test_compute_metrics_hash_rounds_values() -> None:
         "load_avg_1m": 1.1,
     }
     node_data2 = {
-        "cpu_percent": 54.0,
-        "memory_percent": 74.0,
-        "cpu_temp_celsius": 42.0,  # 42/5=8.4 rounds to 8, 8*5=40
-        "load_avg_1m": 1.2,
+        "cpu_percent": 58.0,  # Still floors to 50
+        "memory_percent": 78.0,  # Still floors to 70
+        "cpu_temp_celsius": 44.0,  # 44/5=8.8 -> int=8 -> 8*5=40
+        "load_avg_1m": 1.4,  # 1.4*2=2.8 -> int=2 -> 2/2=1.0
     }
 
     hash1 = main._compute_metrics_hash(node_data1)
