@@ -197,6 +197,7 @@ class NodeStatus(BaseModel):
     disk_percent: Optional[float] = None
     network_tx_bytes_per_sec: Optional[float] = None
     network_rx_bytes_per_sec: Optional[float] = None
+    last_seen_timestamp: float
     last_seen: str
     kubelet_version: Optional[str] = None
 
@@ -319,6 +320,7 @@ async def get_all_nodes():
                 disk_percent=node_data.get('disk_percent'),
                 network_tx_bytes_per_sec=node_data.get('network_tx_bytes_per_sec'),
                 network_rx_bytes_per_sec=node_data.get('network_rx_bytes_per_sec'),
+                last_seen_timestamp=last_seen_timestamp,
                 last_seen=last_seen,
                 kubelet_version=node_data.get('kubelet_version')
             ))

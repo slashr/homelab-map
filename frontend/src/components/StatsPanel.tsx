@@ -1,23 +1,31 @@
-import React, { memo, useEffect, useState } from 'react';
+import React, { memo } from 'react';
 import { ClusterStats, Node } from '../types';
 import { formatBytesPerSecond } from '../utils/format';
 import { getCharacterFromNodeName, getCharacterImage, getCharacterQuote } from '../utils/characterUtils';
 import './StatsPanel.css';
 
 // Format a timestamp as relative time (e.g., "2s ago", "5m ago")
-// The API already returns last_seen as a pre-formatted string, so we pass it through
-const formatRelativeTime = (timestamp: string): string => {
-  // If already formatted as relative time (from API), return as-is
-  if (timestamp.includes('ago') || timestamp === 'just now') {
-    return timestamp;
+const formatRelativeTime = (timestamp: number | string | undefined): string => {
+  if (timestamp === undefined) return 'unknown';
+  if (typeof timestamp === 'string') {
+    const trimmed = timestamp.trim();
+    if (trimmed.endsWith('ago')) return trimmed;
+    const parsed = Date.parse(trimmed);
+    if (!Number.isNaN(parsed)) {
+      return formatRelativeTime(Math.floor(parsed / 1000));
+    }
+    const numeric = Number(trimmed);
+    if (!Number.isNaN(numeric)) {
+      return formatRelativeTime(numeric);
+    }
+    return trimmed;
   }
-  
-  // Try to parse as ISO timestamp (for future compatibility)
+
   const now = Date.now();
-  const then = new Date(timestamp).getTime();
+  const then = timestamp * 1000;
   const diffMs = now - then;
   
-  if (isNaN(then)) return timestamp || 'unknown';
+  if (Number.isNaN(then)) return 'unknown';
   
   const seconds = Math.floor(diffMs / 1000);
   if (seconds < 0) return 'just now';
@@ -56,18 +64,6 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
   isOpen = true,
   onClose,
 }) => {
-  // Timer to trigger re-renders for live "last seen" updates
-  const [, setTick] = useState(0);
-  
-  useEffect(() => {
-    // Update every second to keep "last seen" times fresh
-    const interval = setInterval(() => {
-      setTick(t => t + 1);
-    }, 1000);
-    
-    return () => clearInterval(interval);
-  }, []);
-
   if (!stats) {
     return null;
   }
@@ -192,7 +188,9 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
 
               <div className="node-detail-item">
                 <span className="node-detail-label">Last seen</span>
-                <span className="node-detail-value">{selectedNode.last_seen}</span>
+                <span className="node-detail-value">
+                  {formatRelativeTime(selectedNode.last_seen_timestamp ?? selectedNode.last_seen)}
+                </span>
               </div>
 
               {selectedNode.kubelet_version && (
@@ -307,7 +305,7 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
                 <div className="node-item-header">
                   <div className="node-name">{node.name}</div>
                   <div className={`node-last-seen status-${node.status}`}>
-                    {formatRelativeTime(node.last_seen)}
+                    {formatRelativeTime(node.last_seen_timestamp ?? node.last_seen)}
                   </div>
                 </div>
                 {(node.network_tx_bytes_per_sec !== undefined ||

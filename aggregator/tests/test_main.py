@@ -110,12 +110,15 @@ async def test_get_all_nodes_reports_statuses_based_on_last_seen(
     response = await main.get_all_nodes()
     nodes = {node.name: node for node in response}
     assert nodes["node-online"].status == "online"
+    assert nodes["node-online"].last_seen_timestamp == pytest.approx(fixed_time - 30)
     assert nodes["node-online"].last_seen == "30s ago"
     assert nodes["node-online"].network_tx_bytes_per_sec == pytest.approx(2048.0)
     assert nodes["node-online"].network_rx_bytes_per_sec == pytest.approx(1024.0)
     assert nodes["node-warning"].status == "warning"
+    assert nodes["node-warning"].last_seen_timestamp == pytest.approx(fixed_time - 90)
     assert nodes["node-warning"].last_seen == "1m ago"
     assert nodes["node-offline"].status == "offline"
+    assert nodes["node-offline"].last_seen_timestamp == pytest.approx(fixed_time - 3600)
     assert nodes["node-offline"].last_seen == "1h ago"
 
 
