@@ -718,3 +718,52 @@
 .stats-panel.light .node-details-metrics {
   background: #f8f9fa;
 }
+
+/* Hardware metrics section - allow 4 columns when there are 4 items */
+.node-details-metrics.hardware-metrics {
+  grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+}
+
+/* Temperature color indicators */
+.node-detail-value.temp-cool {
+  color: #4caf50 !important;
+}
+
+.node-detail-value.temp-warm {
+  color: #ff9800 !important;
+}
+
+.node-detail-value.temp-hot {
+  color: #ff5722 !important;
+}
+
+.node-detail-value.temp-critical {
+  color: #f44336 !important;
+  animation: pulse-warning 1.5s ease-in-out infinite;
+}
+
+/* CPU throttling indicator */
+.node-detail-value.throttled {
+  color: #ff9800 !important;
+}
+
+/* Swap warning */
+.node-detail-value.swap-warning {
+  color: #ff9800 !important;
+}
+
+/* Network errors styling */
+.node-detail-value.network-errors {
+  color: #ff9800 !important;
+  font-size: 0.8rem;
+}
+
+/* Subtle pulse animation for critical values */
+@keyframes pulse-warning {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}

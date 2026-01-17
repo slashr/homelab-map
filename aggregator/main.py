@@ -233,6 +233,30 @@ class NodeData(BaseModel):
     network_rx_bytes_per_sec: Optional[float] = None
     connections: Optional[List[Connection]] = None
     timestamp: float = Field(default_factory=time.time)
+    # Extended metrics
+    cpu_temp_celsius: Optional[float] = None
+    temp_critical: Optional[float] = None
+    fan_rpm: Optional[int] = None
+    cpu_freq_mhz: Optional[float] = None
+    cpu_freq_max_mhz: Optional[float] = None
+    uptime_seconds: Optional[float] = None
+    load_avg_1m: Optional[float] = None
+    load_avg_5m: Optional[float] = None
+    load_avg_15m: Optional[float] = None
+    swap_percent: Optional[float] = None
+    swap_total_bytes: Optional[int] = None
+    swap_used_bytes: Optional[int] = None
+    memory_total_bytes: Optional[int] = None
+    memory_available_bytes: Optional[int] = None
+    disk_read_bytes_per_sec: Optional[float] = None
+    disk_write_bytes_per_sec: Optional[float] = None
+    network_packets_sent: Optional[int] = None
+    network_packets_recv: Optional[int] = None
+    network_errin: Optional[int] = None
+    network_errout: Optional[int] = None
+    network_dropin: Optional[int] = None
+    network_dropout: Optional[int] = None
+    process_count: Optional[int] = None
 
 
 class NodeStatus(BaseModel):
@@ -254,6 +278,26 @@ class NodeStatus(BaseModel):
     last_seen_timestamp: float
     last_seen: str
     kubelet_version: Optional[str] = None
+    # Extended metrics
+    cpu_temp_celsius: Optional[float] = None
+    temp_critical: Optional[float] = None
+    fan_rpm: Optional[int] = None
+    cpu_freq_mhz: Optional[float] = None
+    cpu_freq_max_mhz: Optional[float] = None
+    uptime_seconds: Optional[float] = None
+    load_avg_1m: Optional[float] = None
+    load_avg_5m: Optional[float] = None
+    load_avg_15m: Optional[float] = None
+    swap_percent: Optional[float] = None
+    memory_total_bytes: Optional[int] = None
+    memory_available_bytes: Optional[int] = None
+    disk_read_bytes_per_sec: Optional[float] = None
+    disk_write_bytes_per_sec: Optional[float] = None
+    network_errin: Optional[int] = None
+    network_errout: Optional[int] = None
+    network_dropin: Optional[int] = None
+    network_dropout: Optional[int] = None
+    process_count: Optional[int] = None
 
 
 @app.get("/")
@@ -376,7 +420,27 @@ async def get_all_nodes():
                 network_rx_bytes_per_sec=node_data.get('network_rx_bytes_per_sec'),
                 last_seen_timestamp=last_seen_timestamp,
                 last_seen=last_seen,
-                kubelet_version=node_data.get('kubelet_version')
+                kubelet_version=node_data.get('kubelet_version'),
+                # Extended metrics
+                cpu_temp_celsius=node_data.get('cpu_temp_celsius'),
+                temp_critical=node_data.get('temp_critical'),
+                fan_rpm=node_data.get('fan_rpm'),
+                cpu_freq_mhz=node_data.get('cpu_freq_mhz'),
+                cpu_freq_max_mhz=node_data.get('cpu_freq_max_mhz'),
+                uptime_seconds=node_data.get('uptime_seconds'),
+                load_avg_1m=node_data.get('load_avg_1m'),
+                load_avg_5m=node_data.get('load_avg_5m'),
+                load_avg_15m=node_data.get('load_avg_15m'),
+                swap_percent=node_data.get('swap_percent'),
+                memory_total_bytes=node_data.get('memory_total_bytes'),
+                memory_available_bytes=node_data.get('memory_available_bytes'),
+                disk_read_bytes_per_sec=node_data.get('disk_read_bytes_per_sec'),
+                disk_write_bytes_per_sec=node_data.get('disk_write_bytes_per_sec'),
+                network_errin=node_data.get('network_errin'),
+                network_errout=node_data.get('network_errout'),
+                network_dropin=node_data.get('network_dropin'),
+                network_dropout=node_data.get('network_dropout'),
+                process_count=node_data.get('process_count'),
             ))
         
         return nodes_status

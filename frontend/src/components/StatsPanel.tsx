@@ -41,6 +41,39 @@ const formatRelativeTime = (timestamp: number | string | undefined): string => {
   return `${days}d ago`;
 };
 
+// Format uptime in a human-readable format (e.g., "5d 3h 20m")
+const formatUptime = (uptimeSeconds: number | undefined): string => {
+  if (uptimeSeconds === undefined || uptimeSeconds < 0) return '—';
+  
+  const days = Math.floor(uptimeSeconds / 86400);
+  const hours = Math.floor((uptimeSeconds % 86400) / 3600);
+  const minutes = Math.floor((uptimeSeconds % 3600) / 60);
+  
+  if (days > 0) {
+    return `${days}d ${hours}h`;
+  }
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes}m`;
+};
+
+// Get temperature status class based on temperature value
+const getTempClass = (temp: number | undefined, critical: number | undefined): string => {
+  if (temp === undefined) return '';
+  const threshold = critical || 85; // Default critical threshold
+  if (temp >= threshold * 0.9) return 'temp-critical';
+  if (temp >= 65) return 'temp-hot';
+  if (temp >= 50) return 'temp-warm';
+  return 'temp-cool';
+};
+
+// Check if CPU is throttling (current freq significantly below max)
+const isThrottling = (current: number | undefined, max: number | undefined): boolean => {
+  if (current === undefined || max === undefined || max <= 0) return false;
+  return current < max * 0.85; // Less than 85% of max frequency
+};
+
 interface StatsPanelProps {
   stats: ClusterStats | null;
   nodes: Node[];
@@ -173,7 +206,62 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
                     {selectedNode.disk_percent != null ? `${selectedNode.disk_percent.toFixed(1)}%` : '—'}
                   </span>
                 </div>
+                {selectedNode.swap_percent != null && selectedNode.swap_percent > 0 && (
+                  <div className="node-detail-metric">
+                    <span className="node-detail-label">Swap</span>
+                    <span className={`node-detail-value ${selectedNode.swap_percent > 50 ? 'swap-warning' : ''}`}>
+                      {selectedNode.swap_percent.toFixed(1)}%
+                    </span>
+                  </div>
+                )}
               </div>
+
+              {/* Temperature and Hardware Metrics */}
+              {(selectedNode.cpu_temp_celsius != null || selectedNode.fan_rpm != null || selectedNode.cpu_freq_mhz != null) && (
+                <div className="node-details-metrics hardware-metrics">
+                  {selectedNode.cpu_temp_celsius != null && (
+                    <div className="node-detail-metric">
+                      <span className="node-detail-label">🌡️ Temp</span>
+                      <span className={`node-detail-value ${getTempClass(selectedNode.cpu_temp_celsius, selectedNode.temp_critical)}`}>
+                        {selectedNode.cpu_temp_celsius.toFixed(1)}°C
+                      </span>
+                    </div>
+                  )}
+                  {selectedNode.fan_rpm != null && (
+                    <div className="node-detail-metric">
+                      <span className="node-detail-label">🌀 Fan</span>
+                      <span className="node-detail-value">{selectedNode.fan_rpm} RPM</span>
+                    </div>
+                  )}
+                  {selectedNode.cpu_freq_mhz != null && (
+                    <div className="node-detail-metric">
+                      <span className="node-detail-label">⚡ Freq</span>
+                      <span className={`node-detail-value ${isThrottling(selectedNode.cpu_freq_mhz, selectedNode.cpu_freq_max_mhz) ? 'throttled' : ''}`}>
+                        {(selectedNode.cpu_freq_mhz / 1000).toFixed(2)} GHz
+                        {isThrottling(selectedNode.cpu_freq_mhz, selectedNode.cpu_freq_max_mhz) && ' ⚠️'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Load Average */}
+              {selectedNode.load_avg_1m != null && (
+                <div className="node-detail-item">
+                  <span className="node-detail-label">Load Avg</span>
+                  <span className="node-detail-value">
+                    {selectedNode.load_avg_1m.toFixed(2)} / {selectedNode.load_avg_5m?.toFixed(2) ?? '—'} / {selectedNode.load_avg_15m?.toFixed(2) ?? '—'}
+                  </span>
+                </div>
+              )}
+
+              {/* Uptime */}
+              {selectedNode.uptime_seconds != null && (
+                <div className="node-detail-item">
+                  <span className="node-detail-label">Uptime</span>
+                  <span className="node-detail-value">{formatUptime(selectedNode.uptime_seconds)}</span>
+                </div>
+              )}
 
               {(selectedNode.network_tx_bytes_per_sec != null ||
                 selectedNode.network_rx_bytes_per_sec != null) && (
@@ -182,6 +270,31 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
                   <span className="node-detail-value">
                     ⬆ {formatBytesPerSecond(selectedNode.network_tx_bytes_per_sec)} · ⬇{' '}
                     {formatBytesPerSecond(selectedNode.network_rx_bytes_per_sec)}
+                  </span>
+                </div>
+              )}
+
+              {/* Disk I/O */}
+              {(selectedNode.disk_read_bytes_per_sec != null || selectedNode.disk_write_bytes_per_sec != null) && (
+                <div className="node-detail-item">
+                  <span className="node-detail-label">Disk I/O</span>
+                  <span className="node-detail-value">
+                    ⬆ {formatBytesPerSecond(selectedNode.disk_write_bytes_per_sec)} · ⬇{' '}
+                    {formatBytesPerSecond(selectedNode.disk_read_bytes_per_sec)}
+                  </span>
+                </div>
+              )}
+
+              {/* Network Errors */}
+              {((selectedNode.network_errin != null && selectedNode.network_errin > 0) ||
+                (selectedNode.network_errout != null && selectedNode.network_errout > 0) ||
+                (selectedNode.network_dropin != null && selectedNode.network_dropin > 0)) && (
+                <div className="node-detail-item">
+                  <span className="node-detail-label">Net Errors</span>
+                  <span className="node-detail-value network-errors">
+                    {selectedNode.network_errin != null && selectedNode.network_errin > 0 && `Err↓${selectedNode.network_errin} `}
+                    {selectedNode.network_errout != null && selectedNode.network_errout > 0 && `Err↑${selectedNode.network_errout} `}
+                    {selectedNode.network_dropin != null && selectedNode.network_dropin > 0 && `Drop↓${selectedNode.network_dropin.toLocaleString()}`}
                   </span>
                 </div>
               )}
@@ -197,6 +310,13 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
                 <div className="node-detail-item">
                   <span className="node-detail-label">Kubelet</span>
                   <code className="node-detail-value">{selectedNode.kubelet_version}</code>
+                </div>
+              )}
+
+              {selectedNode.process_count != null && (
+                <div className="node-detail-item">
+                  <span className="node-detail-label">Processes</span>
+                  <span className="node-detail-value">{selectedNode.process_count}</span>
                 </div>
               )}
             </div>
