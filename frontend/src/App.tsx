@@ -29,6 +29,12 @@ function App() {
     const saved = localStorage.getItem('darkMode');
     return saved !== null ? saved === 'true' : false; // Default to light mode
   });
+
+  // Performance mode to reduce CPU usage
+  const [performanceMode, setPerformanceMode] = useState(() => {
+    const saved = localStorage.getItem('performanceMode');
+    return saved !== null ? saved === 'true' : false;
+  });
   
   // Sidebar visibility for mobile - start open on desktop, closed on mobile
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -50,6 +56,11 @@ function App() {
   useEffect(() => {
     localStorage.setItem('darkMode', darkMode.toString());
   }, [darkMode]);
+
+  // Save performance preference when it changes
+  useEffect(() => {
+    localStorage.setItem('performanceMode', performanceMode.toString());
+  }, [performanceMode]);
 
   const fetchData = async () => {
     // Use mock data if enabled or if aggregator is unavailable
@@ -264,6 +275,14 @@ function App() {
             <h1>Dunder Mifflin</h1>
           </div>
           <div className="header-right">
+            <button
+              className={`perf-toggle ${performanceMode ? 'active' : ''}`}
+              onClick={() => setPerformanceMode(!performanceMode)}
+              aria-label="Toggle performance mode"
+              title={performanceMode ? 'Performance mode: on' : 'Performance mode: off'}
+            >
+              ⚡
+            </button>
             <button 
               className="theme-toggle"
               onClick={() => setDarkMode(!darkMode)}
@@ -302,6 +321,7 @@ function App() {
             nodes={nodes}
             connections={connections}
             darkMode={darkMode}
+            performanceMode={performanceMode}
             selectedNodeId={selection?.id || null}
             selectionToken={selection?.token || 0}
             onNodeSelect={handleNodeSelect}

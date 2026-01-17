@@ -13,6 +13,7 @@ interface FlatMapProps {
   nodes: Node[];
   connections: Connection[];
   darkMode: boolean;
+  performanceMode?: boolean;
   selectedNodeId: string | null;
   selectionToken: number;
   onNodeSelect?: (nodeName: string) => void;
@@ -78,6 +79,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
   nodes,
   connections,
   darkMode,
+  performanceMode = false,
   selectedNodeId,
   selectionToken,
   onNodeSelect,
@@ -185,7 +187,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
   }, [nodesWithLocation]);
 
   const flatMapConnections = useMemo(() => {
-    return connections
+    const mapped = connections
       .map((conn) => {
         const source = nodeLookup.get(conn.source_node);
         const target = nodeLookup.get(conn.target_node);
@@ -204,7 +206,14 @@ const FlatMap: React.FC<FlatMapProps> = ({
         } as FlatMapConnectionDatum;
       })
       .filter((value): value is FlatMapConnectionDatum => Boolean(value));
-  }, [connections, nodeLookup, darkMode]);
+    if (!performanceMode) {
+      return mapped;
+    }
+    const MAX_RENDERED_CONNECTIONS = 150;
+    return mapped
+      .sort((a, b) => a.latency - b.latency)
+      .slice(0, MAX_RENDERED_CONNECTIONS);
+  }, [connections, nodeLookup, darkMode, performanceMode]);
 
   const countryPolygons = useMemo(() => {
     const geoJson = feature(
@@ -282,6 +291,15 @@ const FlatMap: React.FC<FlatMapProps> = ({
   // Animate connection lines - smooth bidirectional gradient flow
   // Optimized: Cache gradient selections, pause when hidden, stop when no connections
   useEffect(() => {
+    if (performanceMode) {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = undefined;
+      }
+      gradientStopsRef.current = null;
+      return;
+    }
+
     if (!svgRef.current || !projection || flatMapConnections.length === 0) {
       // Stop animation if no connections
       if (animationFrameRef.current) {
@@ -392,7 +410,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
       }
       gradientStopsRef.current = null;
     };
-  }, [projection, flatMapConnections.length]);
+  }, [performanceMode, projection, flatMapConnections.length]);
 
   // Pause animation when tab is hidden to save CPU/memory
   useEffect(() => {
@@ -603,6 +621,8 @@ const FlatMap: React.FC<FlatMapProps> = ({
     }
     defs.selectAll('linearGradient.connection-gradient').remove();
     
+    const useSimpleLines = performanceMode;
+
     flatMapConnections.forEach((conn, index) => {
       const start = projection([conn.startLng, conn.startLat]);
       const end = projection([conn.endLng, conn.endLat]);
@@ -613,99 +633,113 @@ const FlatMap: React.FC<FlatMapProps> = ({
       const forwardGradientId = `gradient-forward-${index}`;
       const reverseGradientId = `gradient-reverse-${index}`;
 
-      // Forward flow gradient (source to target) - aligned along the line
-      const forwardGradient = defs.append('linearGradient')
-        .attr('class', 'connection-gradient')
-        .attr('id', forwardGradientId)
-        .attr('x1', start[0])
-        .attr('y1', start[1])
-        .attr('x2', end[0])
-        .attr('y2', end[1])
-        .attr('gradientUnits', 'userSpaceOnUse');
+      let forwardFlow: any;
+      let reverseFlow: any;
 
-      // Create smooth flowing gradient stops for forward direction
-      forwardGradient.append('stop')
-        .attr('offset', '0%')
-        .attr('stop-color', conn.color[0])
-        .attr('stop-opacity', '0.2')
-        .attr('class', 'gradient-stop-forward-0');
-      forwardGradient.append('stop')
-        .attr('offset', '25%')
-        .attr('stop-color', conn.color[0])
-        .attr('stop-opacity', '0.1')
-        .attr('class', 'gradient-stop-forward-1');
-      forwardGradient.append('stop')
-        .attr('offset', '50%')
-        .attr('stop-color', conn.color[0])
-        .attr('stop-opacity', '0.6')
-        .attr('class', 'gradient-stop-forward-2');
-      forwardGradient.append('stop')
-        .attr('offset', '75%')
-        .attr('stop-color', conn.color[0])
-        .attr('stop-opacity', '0.1')
-        .attr('class', 'gradient-stop-forward-3');
-      forwardGradient.append('stop')
-        .attr('offset', '100%')
-        .attr('stop-color', conn.color[0])
-        .attr('stop-opacity', '0.2')
-        .attr('class', 'gradient-stop-forward-4');
+      if (!useSimpleLines) {
+        // Forward flow gradient (source to target) - aligned along the line
+        const forwardGradient = defs.append('linearGradient')
+          .attr('class', 'connection-gradient')
+          .attr('id', forwardGradientId)
+          .attr('x1', start[0])
+          .attr('y1', start[1])
+          .attr('x2', end[0])
+          .attr('y2', end[1])
+          .attr('gradientUnits', 'userSpaceOnUse');
 
-      // Reverse flow gradient (target to source) - opposite direction
-      const reverseGradient = defs.append('linearGradient')
-        .attr('class', 'connection-gradient')
-        .attr('id', reverseGradientId)
-        .attr('x1', end[0])
-        .attr('y1', end[1])
-        .attr('x2', start[0])
-        .attr('y2', start[1])
-        .attr('gradientUnits', 'userSpaceOnUse');
+        // Create smooth flowing gradient stops for forward direction
+        forwardGradient.append('stop')
+          .attr('offset', '0%')
+          .attr('stop-color', conn.color[0])
+          .attr('stop-opacity', '0.2')
+          .attr('class', 'gradient-stop-forward-0');
+        forwardGradient.append('stop')
+          .attr('offset', '25%')
+          .attr('stop-color', conn.color[0])
+          .attr('stop-opacity', '0.1')
+          .attr('class', 'gradient-stop-forward-1');
+        forwardGradient.append('stop')
+          .attr('offset', '50%')
+          .attr('stop-color', conn.color[0])
+          .attr('stop-opacity', '0.6')
+          .attr('class', 'gradient-stop-forward-2');
+        forwardGradient.append('stop')
+          .attr('offset', '75%')
+          .attr('stop-color', conn.color[0])
+          .attr('stop-opacity', '0.1')
+          .attr('class', 'gradient-stop-forward-3');
+        forwardGradient.append('stop')
+          .attr('offset', '100%')
+          .attr('stop-color', conn.color[0])
+          .attr('stop-opacity', '0.2')
+          .attr('class', 'gradient-stop-forward-4');
 
-      // Create smooth flowing gradient stops for reverse direction
-      reverseGradient.append('stop')
-        .attr('offset', '0%')
-        .attr('stop-color', conn.color[1] || conn.color[0])
-        .attr('stop-opacity', '0.2')
-        .attr('class', 'gradient-stop-reverse-0');
-      reverseGradient.append('stop')
-        .attr('offset', '25%')
-        .attr('stop-color', conn.color[1] || conn.color[0])
-        .attr('stop-opacity', '0.1')
-        .attr('class', 'gradient-stop-reverse-1');
-      reverseGradient.append('stop')
-        .attr('offset', '50%')
-        .attr('stop-color', conn.color[1] || conn.color[0])
-        .attr('stop-opacity', '0.6')
-        .attr('class', 'gradient-stop-reverse-2');
-      reverseGradient.append('stop')
-        .attr('offset', '75%')
-        .attr('stop-color', conn.color[1] || conn.color[0])
-        .attr('stop-opacity', '0.1')
-        .attr('class', 'gradient-stop-reverse-3');
-      reverseGradient.append('stop')
-        .attr('offset', '100%')
-        .attr('stop-color', conn.color[1] || conn.color[0])
-        .attr('stop-opacity', '0.2')
-        .attr('class', 'gradient-stop-reverse-4');
+        // Reverse flow gradient (target to source) - opposite direction
+        const reverseGradient = defs.append('linearGradient')
+          .attr('class', 'connection-gradient')
+          .attr('id', reverseGradientId)
+          .attr('x1', end[0])
+          .attr('y1', end[1])
+          .attr('x2', start[0])
+          .attr('y2', start[1])
+          .attr('gradientUnits', 'userSpaceOnUse');
 
-      // Single line with forward gradient
-      const forwardFlow = connectionGroup
-        .append('path')
-        .attr('class', 'connection-line-flow-forward')
-        .attr('d', `M ${start[0]},${start[1]} L ${end[0]},${end[1]}`)
-        .attr('stroke', `url(#${forwardGradientId})`)
-        .attr('stroke-width', 1.5)
-        .attr('fill', 'none')
-        .style('cursor', 'pointer');
+        // Create smooth flowing gradient stops for reverse direction
+        reverseGradient.append('stop')
+          .attr('offset', '0%')
+          .attr('stop-color', conn.color[1] || conn.color[0])
+          .attr('stop-opacity', '0.2')
+          .attr('class', 'gradient-stop-reverse-0');
+        reverseGradient.append('stop')
+          .attr('offset', '25%')
+          .attr('stop-color', conn.color[1] || conn.color[0])
+          .attr('stop-opacity', '0.1')
+          .attr('class', 'gradient-stop-reverse-1');
+        reverseGradient.append('stop')
+          .attr('offset', '50%')
+          .attr('stop-color', conn.color[1] || conn.color[0])
+          .attr('stop-opacity', '0.6')
+          .attr('class', 'gradient-stop-reverse-2');
+        reverseGradient.append('stop')
+          .attr('offset', '75%')
+          .attr('stop-color', conn.color[1] || conn.color[0])
+          .attr('stop-opacity', '0.1')
+          .attr('class', 'gradient-stop-reverse-3');
+        reverseGradient.append('stop')
+          .attr('offset', '100%')
+          .attr('stop-color', conn.color[1] || conn.color[0])
+          .attr('stop-opacity', '0.2')
+          .attr('class', 'gradient-stop-reverse-4');
 
-      // Single line with reverse gradient
-      const reverseFlow = connectionGroup
-        .append('path')
-        .attr('class', 'connection-line-flow-reverse')
-        .attr('d', `M ${start[0]},${start[1]} L ${end[0]},${end[1]}`)
-        .attr('stroke', `url(#${reverseGradientId})`)
-        .attr('stroke-width', 1.5)
-        .attr('fill', 'none')
-        .style('cursor', 'pointer');
+        // Single line with forward gradient
+        forwardFlow = connectionGroup
+          .append('path')
+          .attr('class', 'connection-line-flow-forward')
+          .attr('d', `M ${start[0]},${start[1]} L ${end[0]},${end[1]}`)
+          .attr('stroke', `url(#${forwardGradientId})`)
+          .attr('stroke-width', 1.5)
+          .attr('fill', 'none')
+          .style('cursor', 'pointer');
+
+        // Single line with reverse gradient
+        reverseFlow = connectionGroup
+          .append('path')
+          .attr('class', 'connection-line-flow-reverse')
+          .attr('d', `M ${start[0]},${start[1]} L ${end[0]},${end[1]}`)
+          .attr('stroke', `url(#${reverseGradientId})`)
+          .attr('stroke-width', 1.5)
+          .attr('fill', 'none')
+          .style('cursor', 'pointer');
+      } else {
+        forwardFlow = connectionGroup
+          .append('path')
+          .attr('class', 'connection-line-flow-forward')
+          .attr('d', `M ${start[0]},${start[1]} L ${end[0]},${end[1]}`)
+          .attr('stroke', conn.color[0])
+          .attr('stroke-width', 1.2)
+          .attr('fill', 'none')
+          .style('cursor', 'pointer');
+      }
 
       // Group for hover effects
       const lineGroup = connectionGroup.append('g')
@@ -713,18 +747,24 @@ const FlatMap: React.FC<FlatMapProps> = ({
         .attr('data-connection-index', index);
       
       lineGroup.node()?.appendChild(forwardFlow.node()!);
-      lineGroup.node()?.appendChild(reverseFlow.node()!);
+      if (reverseFlow) {
+        lineGroup.node()?.appendChild(reverseFlow.node()!);
+      }
 
       lineGroup
         .on('mouseenter', function() {
-          forwardFlow.attr('stroke-width', 2.2);
-          reverseFlow.attr('stroke-width', 2.2);
+          forwardFlow.attr('stroke-width', useSimpleLines ? 1.8 : 2.2);
+          if (reverseFlow) {
+            reverseFlow.attr('stroke-width', 2.2);
+          }
           setHoveredArc(conn);
           setTooltipPosition(mousePositionRef.current);
         })
         .on('mouseleave', function() {
-          forwardFlow.attr('stroke-width', 1.5);
-          reverseFlow.attr('stroke-width', 1.5);
+          forwardFlow.attr('stroke-width', useSimpleLines ? 1.2 : 1.5);
+          if (reverseFlow) {
+            reverseFlow.attr('stroke-width', 1.5);
+          }
           setHoveredArc(null);
           setTooltipPosition(null);
         });
@@ -847,7 +887,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
         .attr('rx', 8)
         .attr('ry', 8);
     }
-  }, [path, projection, mapSize, countryPolygons, flatMapConnections, nodesWithLocation, selectedNodeId, darkMode, onNodeSelect]);
+  }, [path, projection, mapSize, countryPolygons, flatMapConnections, nodesWithLocation, selectedNodeId, darkMode, onNodeSelect, performanceMode]);
 
   const handleMapClick = useCallback((event: React.MouseEvent) => {
     const target = event.target as Element;
