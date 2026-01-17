@@ -215,6 +215,7 @@ def _cleanup_stale_nodes():
     for node_name in nodes_to_remove:
         del nodes_data[node_name]
         connections_data.pop(node_name, None)
+        quote_cache.pop(node_name, None)  # Prune cached quotes for removed nodes
         # Also remove connections where this node is the target
         for source_node in list(connections_data.keys()):
             connections = connections_data[source_node]
