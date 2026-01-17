@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Map as ReactMapGL } from 'react-map-gl/maplibre';
 import DeckGL from '@deck.gl/react';
-import { ArcLayer, IconLayer, ScatterplotLayer } from '@deck.gl/layers';
+import { ArcLayer, IconLayer } from '@deck.gl/layers';
 import { FlyToInterpolator } from '@deck.gl/core';
 import type { PickingInfo } from '@deck.gl/core';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -54,8 +54,31 @@ const MAP_STYLES = {
 
 const MAX_RENDERED_CONNECTIONS = 200;
 
-// Maroon border color for node icons
-const NODE_BORDER_COLOR: [number, number, number, number] = [128, 0, 32, 255];
+// Maroon border color for node icons (used in data URL)
+const MAROON_COLOR = '#800020';
+
+// Create a data URL for a solid maroon square (used as border background)
+const createSquareBorderIcon = (): string => {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = MAROON_COLOR;
+    ctx.fillRect(0, 0, size, size);
+  }
+  return canvas.toDataURL('image/png');
+};
+
+// Cache the border icon URL
+let borderIconUrl: string | null = null;
+const getBorderIconUrl = (): string => {
+  if (!borderIconUrl) {
+    borderIconUrl = createSquareBorderIcon();
+  }
+  return borderIconUrl;
+};
 
 // Initial view state centered on US with global view
 const INITIAL_VIEW_STATE: ViewState = {
@@ -201,17 +224,23 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
         }
       },
     }),
-    // Node border layer (maroon ring behind icons)
-    new ScatterplotLayer<NodeDatum>({
+    // Node border layer (maroon square behind icons)
+    new IconLayer<NodeDatum>({
       id: 'nodes-border',
       data: nodeData,
       getPosition: (d: NodeDatum) => d.coordinates,
-      getRadius: (d: NodeDatum) => (d.isSelected ? 30 : 24),
-      getFillColor: NODE_BORDER_COLOR,
-      radiusUnits: 'pixels',
-      radiusMinPixels: 18,
-      radiusMaxPixels: 36,
+      getIcon: () => ({
+        url: getBorderIconUrl(),
+        width: 128,
+        height: 128,
+        anchorY: 64,
+      }),
+      getSize: (d: NodeDatum) => (d.isSelected ? 56 : 48),
       pickable: false,
+      sizeScale: 1,
+      sizeUnits: 'pixels',
+      sizeMinPixels: 36,
+      sizeMaxPixels: 68,
     }),
     // Nodes icon layer
     new IconLayer<NodeDatum>({
@@ -224,7 +253,7 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
         height: 128,
         anchorY: 64,
       }),
-      getSize: (d: NodeDatum) => (d.isSelected ? 52 : 40),
+      getSize: (d: NodeDatum) => (d.isSelected ? 48 : 40),
       pickable: true,
       onClick: (info: PickingInfo<NodeDatum>) => {
         if (info.object) {
