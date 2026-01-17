@@ -335,7 +335,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
         return;
       }
 
-      if (now - lastFrameTime < 50) {
+      if (now - lastFrameTime < 50) { // ~20fps throttle to limit DOM work
         animationFrameRef.current = requestAnimationFrame(animate);
         return;
       }

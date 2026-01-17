@@ -29,6 +29,16 @@ def _get_float_env(var_name: str, default: float) -> float:
     raw_value = os.getenv(var_name)
     if raw_value is None:
         return default
+    try:
+        return float(raw_value)
+    except ValueError:
+        logger.warning(
+            "Invalid %s value '%s'; falling back to %s",
+            var_name,
+            raw_value,
+            default,
+        )
+        return default
 
 
 def _get_int_env(var_name: str, default: int) -> int:
@@ -79,16 +89,6 @@ HOME_LON_ENV_VAR = 'HOME_LON'
 DEFAULT_HOME_CITY = 'Berlin, Germany'
 DEFAULT_HOME_LAT = 52.5200
 DEFAULT_HOME_LON = 13.4050
-    try:
-        return float(raw_value)
-    except ValueError:
-        logger.warning(
-            "Invalid %s value '%s'; falling back to %s",
-            var_name,
-            raw_value,
-            default,
-        )
-        return default
 
 
 def _build_home_location() -> dict:
