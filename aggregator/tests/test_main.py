@@ -572,9 +572,9 @@ def test_compute_metrics_hash_consistency() -> None:
 
 def test_compute_metrics_hash_rounds_values() -> None:
     """Test that small metric changes don't affect hash."""
-    # Both round to 50% CPU, 70% memory (values within same 10% bucket)
-    node_data1 = {"cpu_percent": 45.0, "memory_percent": 67.0}
-    node_data2 = {"cpu_percent": 48.0, "memory_percent": 72.0}
+    # Both round to 50% CPU, 70% memory (51-54 -> 50, 71-74 -> 70)
+    node_data1 = {"cpu_percent": 51.0, "memory_percent": 71.0}
+    node_data2 = {"cpu_percent": 54.0, "memory_percent": 74.0}
 
     hash1 = main._compute_metrics_hash(node_data1)
     hash2 = main._compute_metrics_hash(node_data2)
