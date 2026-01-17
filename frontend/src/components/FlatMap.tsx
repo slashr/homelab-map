@@ -32,6 +32,7 @@ interface FlatMapConnectionDatum {
 }
 
 const MAX_RENDERED_CONNECTIONS = 150;
+// Animation only applies when the rendered connection count stays below this ceiling.
 const MAX_ANIMATED_CONNECTIONS = 200;
 
 const getCharacterImage = (nodeName: string): string => {

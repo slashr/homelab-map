@@ -30,7 +30,6 @@ function App() {
     const saved = localStorage.getItem('darkMode');
     return saved !== null ? saved === 'true' : false; // Default to light mode
   });
-
   
   // Sidebar visibility for mobile - start open on desktop, closed on mobile
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -52,7 +51,6 @@ function App() {
   useEffect(() => {
     localStorage.setItem('darkMode', darkMode.toString());
   }, [darkMode]);
-
 
   const fetchData = async () => {
     // Use mock data if enabled or if aggregator is unavailable
