@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Map as ReactMapGL } from 'react-map-gl/maplibre';
 import DeckGL from '@deck.gl/react';
-import { ArcLayer, IconLayer } from '@deck.gl/layers';
+import { ArcLayer, IconLayer, ScatterplotLayer } from '@deck.gl/layers';
 import { FlyToInterpolator } from '@deck.gl/core';
 import type { PickingInfo } from '@deck.gl/core';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -53,6 +53,9 @@ const MAP_STYLES = {
 };
 
 const MAX_RENDERED_CONNECTIONS = 200;
+
+// Maroon border color for node icons
+const NODE_BORDER_COLOR: [number, number, number, number] = [128, 0, 32, 255];
 
 // Initial view state centered on US with global view
 const INITIAL_VIEW_STATE: ViewState = {
@@ -198,6 +201,18 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
         }
       },
     }),
+    // Node border layer (maroon ring behind icons)
+    new ScatterplotLayer<NodeDatum>({
+      id: 'nodes-border',
+      data: nodeData,
+      getPosition: (d: NodeDatum) => d.coordinates,
+      getRadius: (d: NodeDatum) => (d.isSelected ? 30 : 24),
+      getFillColor: NODE_BORDER_COLOR,
+      radiusUnits: 'pixels',
+      radiusMinPixels: 18,
+      radiusMaxPixels: 36,
+      pickable: false,
+    }),
     // Nodes icon layer
     new IconLayer<NodeDatum>({
       id: 'nodes-icon',
@@ -209,7 +224,7 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
         height: 128,
         anchorY: 64,
       }),
-      getSize: (d: NodeDatum) => (d.isSelected ? 56 : 44),
+      getSize: (d: NodeDatum) => (d.isSelected ? 52 : 40),
       pickable: true,
       onClick: (info: PickingInfo<NodeDatum>) => {
         if (info.object) {
@@ -230,8 +245,8 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
       },
       sizeScale: 1,
       sizeUnits: 'pixels',
-      sizeMinPixels: 32,
-      sizeMaxPixels: 64,
+      sizeMinPixels: 28,
+      sizeMaxPixels: 60,
     }),
   ], [arcData, nodeData, onNodeSelect, hoveredArc]);
 
