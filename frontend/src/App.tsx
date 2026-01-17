@@ -5,6 +5,12 @@ import { Node, ClusterStats, Connection } from './types';
 import { mockNodes, mockConnections, mockStats } from './mockData';
 import './App.css';
 
+// Password modal state
+interface PasswordModalState {
+  passwordInput: string;
+  passwordError: boolean;
+}
+
 // Lazy load heavy map components to improve initial page load
 const DeckGLMap = lazy(() => import('./components/DeckGLMap'));
 
@@ -30,6 +36,50 @@ function App() {
     const saved = localStorage.getItem('darkMode');
     return saved !== null ? saved === 'true' : false; // Default to light mode
   });
+
+  // Interactive mode for AI quotes (global toggle)
+  const [interactiveMode, setInteractiveMode] = useState(false);
+  const [interactivePassword, setInteractivePassword] = useState('');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordModal, setPasswordModal] = useState<PasswordModalState>({
+    passwordInput: '',
+    passwordError: false,
+  });
+
+  // Handle password submission for interactive mode
+  const handlePasswordSubmit = async () => {
+    const testNode = nodes[0]?.name || 'michael-pi';
+    try {
+      await axios.post(`${AGGREGATOR_URL}/api/quote/${testNode}`, {
+        password: passwordModal.passwordInput
+      });
+      // Password valid - enable interactive mode
+      setInteractivePassword(passwordModal.passwordInput);
+      setInteractiveMode(true);
+      setShowPasswordModal(false);
+      setPasswordModal({ passwordInput: '', passwordError: false });
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        if (status === 401) {
+          // Invalid password
+          setPasswordModal(prev => ({ ...prev, passwordError: true }));
+        } else if (status === 404) {
+          // Node not found - nodes aren't loaded yet, allow auth to proceed
+          setInteractivePassword(passwordModal.passwordInput);
+          setInteractiveMode(true);
+          setShowPasswordModal(false);
+          setPasswordModal({ passwordInput: '', passwordError: false });
+        } else {
+          // 503 (not configured) or other server errors - show as error
+          setPasswordModal(prev => ({ ...prev, passwordError: true }));
+        }
+      } else {
+        // Network error - show as error
+        setPasswordModal(prev => ({ ...prev, passwordError: true }));
+      }
+    }
+  };
   
   // Sidebar visibility for mobile - start open on desktop, closed on mobile
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -266,7 +316,15 @@ function App() {
             <h1>Dunder Mifflin</h1>
           </div>
           <div className="header-right">
-            <button 
+            <button
+              className={`interactive-toggle ${interactiveMode ? 'active' : ''}`}
+              onClick={() => interactiveMode ? setInteractiveMode(false) : setShowPasswordModal(true)}
+              aria-label="Toggle interactive mode"
+              title={interactiveMode ? 'Disable interactive AI quotes' : 'Enable interactive AI quotes'}
+            >
+              {interactiveMode ? '🎭' : '🔒'}
+            </button>
+            <button
               className="theme-toggle"
               onClick={() => setDarkMode(!darkMode)}
               aria-label="Toggle theme"
@@ -298,6 +356,12 @@ function App() {
           onNodeDeselect={handleNodeDeselect}
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
+          interactiveMode={interactiveMode}
+          interactivePassword={interactivePassword}
+          onAuthFailure={() => {
+            setInteractiveMode(false);
+            setInteractivePassword('');
+          }}
         />
         <Suspense fallback={<div className="map-loading">Loading map...</div>}>
           <DeckGLMap
@@ -312,6 +376,55 @@ function App() {
           />
         </Suspense>
       </div>
+
+      {/* Password Modal for Interactive Mode */}
+      {showPasswordModal && (
+        <div className="password-modal-overlay" onClick={() => {
+          setShowPasswordModal(false);
+          setPasswordModal({ passwordInput: '', passwordError: false });
+        }}>
+          <div className="password-modal" onClick={e => e.stopPropagation()}>
+            <h4>Enter Password</h4>
+            <p className="password-modal-hint">Enable interactive AI quotes</p>
+            <input
+              type="password"
+              placeholder="Password"
+              autoFocus
+              value={passwordModal.passwordInput}
+              className={passwordModal.passwordError ? 'error' : ''}
+              onChange={(e) => {
+                setPasswordModal({ passwordInput: e.target.value, passwordError: false });
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handlePasswordSubmit();
+                } else if (e.key === 'Escape') {
+                  setShowPasswordModal(false);
+                  setPasswordModal({ passwordInput: '', passwordError: false });
+                }
+              }}
+            />
+            {passwordModal.passwordError && <span className="error-text">Incorrect password</span>}
+            <div className="modal-buttons">
+              <button
+                className="modal-button cancel"
+                onClick={() => {
+                  setShowPasswordModal(false);
+                  setPasswordModal({ passwordInput: '', passwordError: false });
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="modal-button submit"
+                onClick={handlePasswordSubmit}
+              >
+                Enter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

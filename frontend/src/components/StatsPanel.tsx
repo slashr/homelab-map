@@ -2,7 +2,7 @@ import React, { memo, useState, useEffect } from 'react';
 import axios from 'axios';
 import { ClusterStats, Node } from '../types';
 import { formatBytesPerSecond } from '../utils/format';
-import { getCharacterFromNodeName, getCharacterImage, getCharacterQuote } from '../utils/characterUtils';
+import { getCharacterFromNodeName, getCharacterImage, getCharacterQuote, capitalizeCharacterName } from '../utils/characterUtils';
 import './StatsPanel.css';
 
 // Use relative path in production (behind ingress), or env var for local dev
@@ -79,6 +79,42 @@ const isThrottling = (current: number | undefined, max: number | undefined): boo
   return current < max * 0.85; // Less than 85% of max frequency
 };
 
+// Rate limiting constants
+const DAILY_QUOTE_LIMIT = 3;
+const RATE_LIMIT_KEY = 'homelab-map-quote-clicks';
+
+// Get today's date string for rate limiting
+const getTodayKey = (): string => {
+  return new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+};
+
+// Get click count for today
+const getClickCount = (): number => {
+  const stored = localStorage.getItem(RATE_LIMIT_KEY);
+  if (!stored) return 0;
+  try {
+    const data = JSON.parse(stored);
+    if (data.date !== getTodayKey()) return 0;
+    return data.count || 0;
+  } catch {
+    return 0;
+  }
+};
+
+// Increment click count
+const incrementClickCount = (): void => {
+  const today = getTodayKey();
+  localStorage.setItem(RATE_LIMIT_KEY, JSON.stringify({
+    date: today,
+    count: getClickCount() + 1
+  }));
+};
+
+// Check if rate limited
+const isRateLimited = (): boolean => {
+  return getClickCount() >= DAILY_QUOTE_LIMIT;
+};
+
 interface StatsPanelProps {
   stats: ClusterStats | null;
   nodes: Node[];
@@ -89,6 +125,9 @@ interface StatsPanelProps {
   onNodeDeselect?: () => void;
   isOpen?: boolean;
   onClose?: () => void;
+  interactiveMode?: boolean;
+  interactivePassword?: string;
+  onAuthFailure?: () => void;  // Called when 401 received on quote fetch
 }
 
 const StatsPanel: React.FC<StatsPanelProps> = ({
@@ -101,14 +140,13 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
   onNodeDeselect,
   isOpen = true,
   onClose,
+  interactiveMode = false,
+  interactivePassword = '',
+  onAuthFailure,
 }) => {
   const [quote, setQuote] = useState<string | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
-  const [interactiveMode, setInteractiveMode] = useState(false);
-  const [interactivePassword, setInteractivePassword] = useState('');
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [passwordError, setPasswordError] = useState(false);
-  const [passwordInput, setPasswordInput] = useState('');
+  const [clicksRemaining, setClicksRemaining] = useState(DAILY_QUOTE_LIMIT - getClickCount());
 
   const selectedNode = selectedNodeId && showDetails ? nodes.find((node) => node.name === selectedNodeId) : null;
 
@@ -122,39 +160,29 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
     setQuote(getCharacterQuote(getCharacterFromNodeName(selectedNode.name)));
   }, [selectedNode]);
 
-  // Handle password submission - validate via backend
-  const handlePasswordSubmit = async () => {
-    const testNode = selectedNode?.name || nodes[0]?.name || 'michael-pi';
-    try {
-      await axios.post(`${AGGREGATOR_URL}/api/quote/${testNode}`, {
-        password: passwordInput
-      });
-      // Password valid - enable interactive mode
-      setInteractivePassword(passwordInput);
-      setInteractiveMode(true);
-      setShowPasswordModal(false);
-      setPasswordError(false);
-      setPasswordInput('');
-    } catch {
-      setPasswordError(true);
-    }
-  };
+  // Update clicks remaining when component mounts or when interactive mode changes
+  useEffect(() => {
+    setClicksRemaining(DAILY_QUOTE_LIMIT - getClickCount());
+  }, [interactiveMode]);
 
   // Fetch AI quote on demand (interactive mode)
   const fetchAIQuote = async () => {
     if (!selectedNode || !interactivePassword) return;
+    if (isRateLimited()) return;
 
     setQuoteLoading(true);
     try {
       const response = await axios.post(`${AGGREGATOR_URL}/api/quote/${selectedNode.name}`, {
-        password: interactivePassword
+        password: interactivePassword,
+        force_new: true  // Always generate a fresh quote
       });
       setQuote(response.data.quote);
+      incrementClickCount();
+      setClicksRemaining(DAILY_QUOTE_LIMIT - getClickCount());
     } catch (error) {
+      // Handle 401 - password invalidated, exit interactive mode
       if (axios.isAxiosError(error) && error.response?.status === 401) {
-        // Password invalidated - exit interactive mode
-        setInteractiveMode(false);
-        setInteractivePassword('');
+        onAuthFailure?.();
       }
       console.warn('Failed to fetch AI quote:', error);
     } finally {
@@ -184,13 +212,6 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
             <div className="node-details-header">
               <h2>Node Details</h2>
               <div className="node-details-header-buttons">
-                <button
-                  className={`interactive-mode-toggle ${interactiveMode ? 'active' : ''}`}
-                  onClick={() => interactiveMode ? setInteractiveMode(false) : setShowPasswordModal(true)}
-                  title={interactiveMode ? 'Disable interactive mode' : 'Enable interactive mode'}
-                >
-                  {interactiveMode ? '🎭' : '🔒'}
-                </button>
                 {onNodeDeselect && (
                   <button
                     className="node-details-close"
@@ -235,11 +256,12 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
               </div>
               {interactiveMode && (
                 <button
-                  className="ask-quote-button"
+                  className={`ask-quote-button ${isRateLimited() ? 'rate-limited' : ''}`}
                   onClick={fetchAIQuote}
-                  disabled={quoteLoading}
+                  disabled={quoteLoading || isRateLimited()}
+                  title={isRateLimited() ? 'Daily limit reached (3 quotes/day)' : `${clicksRemaining} quotes remaining today`}
                 >
-                  {quoteLoading ? 'Thinking...' : `How do you feel, ${getCharacterFromNodeName(selectedNode.name)}?`}
+                  {quoteLoading ? 'Thinking...' : isRateLimited() ? 'Daily limit reached' : `How do you feel, ${capitalizeCharacterName(getCharacterFromNodeName(selectedNode.name))}?`}
                 </button>
               )}
             </div>
@@ -530,58 +552,6 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
         </>
       )}
 
-      {/* Password Modal */}
-      {showPasswordModal && (
-        <div className="password-modal-overlay" onClick={() => {
-          setShowPasswordModal(false);
-          setPasswordError(false);
-          setPasswordInput('');
-        }}>
-          <div className="password-modal" onClick={e => e.stopPropagation()}>
-            <h4>Enter Password</h4>
-            <p className="password-modal-hint">Enable interactive AI quotes</p>
-            <input
-              type="password"
-              placeholder="Password"
-              autoFocus
-              value={passwordInput}
-              className={passwordError ? 'error' : ''}
-              onChange={(e) => {
-                setPasswordInput(e.target.value);
-                setPasswordError(false);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handlePasswordSubmit();
-                } else if (e.key === 'Escape') {
-                  setShowPasswordModal(false);
-                  setPasswordError(false);
-                  setPasswordInput('');
-                }
-              }}
-            />
-            {passwordError && <span className="error-text">Incorrect password</span>}
-            <div className="modal-buttons">
-              <button
-                className="modal-button cancel"
-                onClick={() => {
-                  setShowPasswordModal(false);
-                  setPasswordError(false);
-                  setPasswordInput('');
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                className="modal-button submit"
-                onClick={handlePasswordSubmit}
-              >
-                Enter
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
