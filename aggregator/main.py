@@ -44,6 +44,10 @@ NODE_TIMEOUT_ENV_VAR = "NODE_TIMEOUT_SECONDS"
 DEFAULT_NODE_TIMEOUT_SECONDS = 120
 CLEANUP_GRACE_PERIOD_ENV_VAR = "CLEANUP_GRACE_PERIOD_SECONDS"
 DEFAULT_CLEANUP_GRACE_PERIOD_SECONDS = 86400  # 24 hours
+MAX_CONNECTIONS_ENV_VAR = "MAX_CONNECTIONS"
+DEFAULT_MAX_CONNECTIONS = 500
+DEDUP_CONNECTIONS_ENV_VAR = "DEDUP_CONNECTIONS"
+DEFAULT_DEDUP_CONNECTIONS = True
 
 
 def _load_node_timeout() -> int:
@@ -102,6 +106,56 @@ def _load_cleanup_grace_period() -> int:
 
 
 CLEANUP_GRACE_PERIOD = _load_cleanup_grace_period()
+
+
+def _load_max_connections() -> int:
+    """Resolve the max number of connections to return with a safe fallback."""
+    raw_value = os.getenv(MAX_CONNECTIONS_ENV_VAR)
+    if raw_value is None:
+        return DEFAULT_MAX_CONNECTIONS
+
+    try:
+        value = int(raw_value)
+    except ValueError:
+        logger.warning(
+            "MAX_CONNECTIONS=%s is not a valid integer; falling back to %s",
+            raw_value,
+            DEFAULT_MAX_CONNECTIONS,
+        )
+        return DEFAULT_MAX_CONNECTIONS
+
+    if value <= 0:
+        logger.warning(
+            "MAX_CONNECTIONS must be positive; falling back to %s",
+            DEFAULT_MAX_CONNECTIONS,
+        )
+        return DEFAULT_MAX_CONNECTIONS
+
+    return value
+
+
+def _load_bool_env(var_name: str, default: bool) -> bool:
+    raw_value = os.getenv(var_name)
+    if raw_value is None:
+        return default
+
+    normalized = raw_value.strip().lower()
+    if normalized in {"1", "true", "yes", "y", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "n", "off"}:
+        return False
+
+    logger.warning(
+        "%s=%s is not a valid boolean; falling back to %s",
+        var_name,
+        raw_value,
+        default,
+    )
+    return default
+
+
+MAX_CONNECTIONS = _load_max_connections()
+DEDUP_CONNECTIONS = _load_bool_env(DEDUP_CONNECTIONS_ENV_VAR, DEFAULT_DEDUP_CONNECTIONS)
 
 
 def _cleanup_stale_nodes():
@@ -385,6 +439,20 @@ async def get_all_connections():
                         'max_ms': conn_dict.get('max_ms'),
                     })
         
+        if DEDUP_CONNECTIONS:
+            deduped = {}
+            for conn in all_connections:
+                key = tuple(sorted([conn.get('source_node'), conn.get('target_node')]))
+                existing = deduped.get(key)
+                if not existing or conn.get('latency_ms', 0) < existing.get('latency_ms', 0):
+                    deduped[key] = conn
+            all_connections = list(deduped.values())
+
+        if MAX_CONNECTIONS > 0 and len(all_connections) > MAX_CONNECTIONS:
+            all_connections = sorted(
+                all_connections, key=lambda c: c.get('latency_ms', 0)
+            )[:MAX_CONNECTIONS]
+
         return all_connections
         
     except Exception as e:
