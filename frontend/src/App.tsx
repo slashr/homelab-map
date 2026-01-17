@@ -6,7 +6,7 @@ import { mockNodes, mockConnections, mockStats } from './mockData';
 import './App.css';
 
 // Lazy load heavy map components to improve initial page load
-const FlatMap = lazy(() => import('./components/FlatMap'));
+const DeckGLMap = lazy(() => import('./components/DeckGLMap'));
 
 // Use relative path in production (behind ingress), or env var for local dev
 const AGGREGATOR_URL = process.env.REACT_APP_AGGREGATOR_URL || 
@@ -300,7 +300,7 @@ function App() {
           onClose={() => setSidebarOpen(false)}
         />
         <Suspense fallback={<div className="map-loading">Loading map...</div>}>
-          <FlatMap
+          <DeckGLMap
             nodes={nodes}
             connections={connections}
             darkMode={darkMode}
