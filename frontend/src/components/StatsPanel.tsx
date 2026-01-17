@@ -5,12 +5,19 @@ import { getCharacterFromNodeName, getCharacterImage, getCharacterQuote } from '
 import './StatsPanel.css';
 
 // Format a timestamp as relative time (e.g., "2s ago", "5m ago")
+// The API already returns last_seen as a pre-formatted string, so we pass it through
 const formatRelativeTime = (timestamp: string): string => {
+  // If already formatted as relative time (from API), return as-is
+  if (timestamp.includes('ago') || timestamp === 'just now') {
+    return timestamp;
+  }
+  
+  // Try to parse as ISO timestamp (for future compatibility)
   const now = Date.now();
   const then = new Date(timestamp).getTime();
   const diffMs = now - then;
   
-  if (isNaN(then)) return 'unknown';
+  if (isNaN(then)) return timestamp || 'unknown';
   
   const seconds = Math.floor(diffMs / 1000);
   if (seconds < 0) return 'just now';
