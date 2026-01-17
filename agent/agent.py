@@ -502,9 +502,9 @@ def main():
     logger.info(f"Starting Homelab K3s Agent on {NODE_NAME}")
     logger.info(f"Aggregator URL: {AGGREGATOR_URL}")
     logger.info(f"Report interval: {REPORT_INTERVAL}s")
+    logger.info(f"Connection check interval: {CONNECTION_CHECK_INTERVAL} reports")
     
     connection_check_counter = 0
-    CONNECTION_CHECK_INTERVAL = 5  # Measure connections every 5 reports (2.5 minutes)
     
     while True:
         try:
