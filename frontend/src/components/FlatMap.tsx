@@ -13,7 +13,6 @@ interface FlatMapProps {
   nodes: Node[];
   connections: Connection[];
   darkMode: boolean;
-  performanceMode?: boolean;
   connectionsTotal?: number;
   selectedNodeId: string | null;
   selectionToken: number;
@@ -83,7 +82,6 @@ const FlatMap: React.FC<FlatMapProps> = ({
   nodes,
   connections,
   darkMode,
-  performanceMode = false,
   connectionsTotal,
   selectedNodeId,
   selectionToken,
@@ -211,13 +209,13 @@ const FlatMap: React.FC<FlatMapProps> = ({
         } as FlatMapConnectionDatum;
       })
       .filter((value): value is FlatMapConnectionDatum => Boolean(value));
-    if (!performanceMode) {
+    if (mapped.length <= MAX_RENDERED_CONNECTIONS) {
       return mapped;
     }
     return mapped
       .sort((a, b) => a.latency - b.latency)
       .slice(0, MAX_RENDERED_CONNECTIONS);
-  }, [connections, nodeLookup, darkMode, performanceMode]);
+  }, [connections, nodeLookup, darkMode]);
 
   const totalConnections = connectionsTotal ?? connections.length;
 
@@ -297,15 +295,6 @@ const FlatMap: React.FC<FlatMapProps> = ({
   // Animate connection lines - smooth bidirectional gradient flow
   // Optimized: Cache gradient selections, pause when hidden, stop when no connections
   useEffect(() => {
-    if (performanceMode) {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = undefined;
-      }
-      gradientStopsRef.current = null;
-      return;
-    }
-
     if (!svgRef.current || !projection || flatMapConnections.length === 0) {
       // Stop animation if no connections
       if (animationFrameRef.current) {
@@ -415,7 +404,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
       }
       gradientStopsRef.current = null;
     };
-  }, [performanceMode, projection, flatMapConnections.length]);
+  }, [projection, flatMapConnections.length]);
 
   // Pause animation when tab is hidden to save CPU/memory
   useEffect(() => {
@@ -626,7 +615,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
     }
     defs.selectAll('linearGradient.connection-gradient').remove();
     
-    const useSimpleLines = performanceMode;
+    const useSimpleLines = flatMapConnections.length > MAX_ANIMATED_CONNECTIONS;
 
     flatMapConnections.forEach((conn, index) => {
       const start = projection([conn.startLng, conn.startLat]);
@@ -892,7 +881,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
         .attr('rx', 8)
         .attr('ry', 8);
     }
-  }, [path, projection, mapSize, countryPolygons, flatMapConnections, nodesWithLocation, selectedNodeId, darkMode, onNodeSelect, performanceMode]);
+  }, [path, projection, mapSize, countryPolygons, flatMapConnections, nodesWithLocation, selectedNodeId, darkMode, onNodeSelect]);
 
   const handleMapClick = useCallback((event: React.MouseEvent) => {
     const target = event.target as Element;
@@ -947,7 +936,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
           />
         )}
 
-        {performanceMode && totalConnections > MAX_RENDERED_CONNECTIONS && (
+        {totalConnections > MAX_RENDERED_CONNECTIONS && (
           <div className={`connection-cap-indicator ${darkMode ? 'dark' : 'light'}`}>
             Showing {MAX_RENDERED_CONNECTIONS} / {totalConnections} connections
           </div>
