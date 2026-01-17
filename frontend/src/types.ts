@@ -16,6 +16,26 @@ export interface Node {
   last_seen_timestamp?: number;
   last_seen: string;
   kubelet_version?: string;
+  // Extended metrics
+  cpu_temp_celsius?: number;
+  temp_critical?: number;
+  fan_rpm?: number;
+  cpu_freq_mhz?: number;
+  cpu_freq_max_mhz?: number;
+  uptime_seconds?: number;
+  load_avg_1m?: number;
+  load_avg_5m?: number;
+  load_avg_15m?: number;
+  swap_percent?: number;
+  memory_total_bytes?: number;
+  memory_available_bytes?: number;
+  disk_read_bytes_per_sec?: number;
+  disk_write_bytes_per_sec?: number;
+  network_errin?: number;
+  network_errout?: number;
+  network_dropin?: number;
+  network_dropout?: number;
+  process_count?: number;
 }
 
 export interface Connection {

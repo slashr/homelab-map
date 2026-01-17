@@ -73,6 +73,7 @@ CONNECTION_CHECK_INTERVAL = _get_int_env('CONNECTION_CHECK_INTERVAL', 5)
 MAX_CONNECTION_TARGETS = _get_int_env('MAX_CONNECTION_TARGETS', 25)
 NODE_NAME = os.getenv('NODE_NAME', socket.gethostname())
 NETWORK_COUNTER_SNAPSHOT = None
+DISK_IO_SNAPSHOT = None
 ENABLE_AUTO_GEOLOCATION = os.getenv('ENABLE_AUTO_GEOLOCATION', 'true').lower() == 'true'
 
 # Cache for geolocation results (key: node_name, value: location dict)
@@ -133,6 +134,169 @@ def _measure_network_throughput() -> dict:
         'network_tx_bytes_per_sec': tx_per_sec,
         'network_rx_bytes_per_sec': rx_per_sec,
     }
+
+
+def _measure_disk_io_throughput() -> dict:
+    """Calculate disk I/O bytes-per-second deltas using psutil disk_io_counters."""
+    global DISK_IO_SNAPSHOT
+    try:
+        counters = psutil.disk_io_counters()
+        if counters is None:
+            return {}
+    except Exception as exc:
+        logger.debug(f"Failed to read disk I/O counters: {exc}")
+        return {}
+
+    now = time.time()
+    if DISK_IO_SNAPSHOT is None:
+        DISK_IO_SNAPSHOT = (counters.read_bytes, counters.write_bytes, now)
+        return {
+            'disk_read_bytes_per_sec': 0.0,
+            'disk_write_bytes_per_sec': 0.0,
+        }
+
+    prev_read, prev_write, prev_time = DISK_IO_SNAPSHOT
+    elapsed = max(now - prev_time, 1e-3)
+    read_per_sec = max(counters.read_bytes - prev_read, 0) / elapsed
+    write_per_sec = max(counters.write_bytes - prev_write, 0) / elapsed
+    DISK_IO_SNAPSHOT = (counters.read_bytes, counters.write_bytes, now)
+
+    return {
+        'disk_read_bytes_per_sec': read_per_sec,
+        'disk_write_bytes_per_sec': write_per_sec,
+    }
+
+
+def _collect_temperature_metrics() -> dict:
+    """Collect temperature and fan metrics using psutil sensors."""
+    result = {}
+
+    # Temperature sensors (primarily for Raspberry Pi, but works on any Linux with sensors)
+    try:
+        if hasattr(psutil, 'sensors_temperatures'):
+            temps = psutil.sensors_temperatures()
+            if temps:
+                # Look for CPU thermal sensor (common names)
+                for sensor_name in ['cpu_thermal', 'coretemp', 'k10temp', 'acpitz']:
+                    if sensor_name in temps and temps[sensor_name]:
+                        sensor = temps[sensor_name][0]
+                        result['cpu_temp_celsius'] = sensor.current
+                        if sensor.critical:
+                            result['temp_critical'] = sensor.critical
+                        break
+                # If no known sensor found, try the first available
+                if 'cpu_temp_celsius' not in result:
+                    for sensor_name, readings in temps.items():
+                        if readings:
+                            result['cpu_temp_celsius'] = readings[0].current
+                            if readings[0].critical:
+                                result['temp_critical'] = readings[0].critical
+                            break
+    except Exception as exc:
+        logger.debug(f"Failed to read temperature sensors: {exc}")
+
+    # Fan sensors (primarily for Raspberry Pi 5 with active cooling)
+    try:
+        if hasattr(psutil, 'sensors_fans'):
+            fans = psutil.sensors_fans()
+            if fans:
+                # Look for PWM fan (Raspberry Pi 5)
+                for fan_name in ['pwmfan', 'fan1']:
+                    if fan_name in fans and fans[fan_name]:
+                        result['fan_rpm'] = fans[fan_name][0].current
+                        break
+                # If no known fan found, try the first available
+                if 'fan_rpm' not in result:
+                    for fan_name, readings in fans.items():
+                        if readings:
+                            result['fan_rpm'] = readings[0].current
+                            break
+    except Exception as exc:
+        logger.debug(f"Failed to read fan sensors: {exc}")
+
+    return result
+
+
+def _collect_cpu_frequency() -> dict:
+    """Collect CPU frequency metrics."""
+    result = {}
+    try:
+        freq = psutil.cpu_freq()
+        if freq:
+            result['cpu_freq_mhz'] = freq.current
+            if freq.max and freq.max > 0:
+                result['cpu_freq_max_mhz'] = freq.max
+    except Exception as exc:
+        logger.debug(f"Failed to read CPU frequency: {exc}")
+    return result
+
+
+def _collect_system_metrics() -> dict:
+    """Collect uptime, load average, and swap metrics."""
+    result = {}
+
+    # Uptime
+    try:
+        boot_time = psutil.boot_time()
+        result['uptime_seconds'] = time.time() - boot_time
+    except Exception as exc:
+        logger.debug(f"Failed to read boot time: {exc}")
+
+    # Load average
+    try:
+        load = os.getloadavg()
+        result['load_avg_1m'] = load[0]
+        result['load_avg_5m'] = load[1]
+        result['load_avg_15m'] = load[2]
+    except Exception as exc:
+        logger.debug(f"Failed to read load average: {exc}")
+
+    # Swap usage
+    try:
+        swap = psutil.swap_memory()
+        result['swap_percent'] = swap.percent
+        result['swap_total_bytes'] = swap.total
+        result['swap_used_bytes'] = swap.used
+    except Exception as exc:
+        logger.debug(f"Failed to read swap memory: {exc}")
+
+    # Memory details
+    try:
+        mem = psutil.virtual_memory()
+        result['memory_total_bytes'] = mem.total
+        result['memory_available_bytes'] = mem.available
+    except Exception as exc:
+        logger.debug(f"Failed to read memory details: {exc}")
+
+    return result
+
+
+def _collect_network_health() -> dict:
+    """Collect network error and drop statistics."""
+    result = {}
+    try:
+        net = psutil.net_io_counters()
+        if net:
+            result['network_packets_sent'] = net.packets_sent
+            result['network_packets_recv'] = net.packets_recv
+            result['network_errin'] = net.errin
+            result['network_errout'] = net.errout
+            result['network_dropin'] = net.dropin
+            result['network_dropout'] = net.dropout
+    except Exception as exc:
+        logger.debug(f"Failed to read network error stats: {exc}")
+    return result
+
+
+def _collect_process_count() -> dict:
+    """Collect number of running processes."""
+    result = {}
+    try:
+        result['process_count'] = len(psutil.pids())
+    except Exception as exc:
+        logger.debug(f"Failed to read process count: {exc}")
+    return result
+
 
 # Cloud provider datacenter locations (no need to change these)
 CLOUD_LOCATIONS = {
@@ -353,7 +517,16 @@ def get_node_info():
         net_if_addrs = psutil.net_if_addrs()
         node_info['network_interfaces'] = list(net_if_addrs.keys())
 
+        # Network throughput
         node_info.update(_measure_network_throughput())
+
+        # Extended metrics
+        node_info.update(_collect_temperature_metrics())
+        node_info.update(_collect_cpu_frequency())
+        node_info.update(_collect_system_metrics())
+        node_info.update(_collect_network_health())
+        node_info.update(_collect_process_count())
+        node_info.update(_measure_disk_io_throughput())
         
         logger.info(f"Collected info for node: {NODE_NAME}")
         return node_info

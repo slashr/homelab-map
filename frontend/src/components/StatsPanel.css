@@ -703,6 +703,252 @@
   color: #333;
 }
 
+/* ===========================================
+   Metrics Box - Unified Card Layout
+   =========================================== */
+.metrics-box {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.stats-panel.dark .metrics-box {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.stats-panel.light .metrics-box {
+  background: #f8f9fa;
+  border: 1px solid #e8e8e8;
+}
+
+.metrics-box-header {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid;
+}
+
+.stats-panel.dark .metrics-box-header {
+  background: rgba(255, 255, 255, 0.03);
+  color: #888;
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.stats-panel.light .metrics-box-header {
+  background: #f0f0f0;
+  color: #666;
+  border-bottom-color: #e0e0e0;
+}
+
+/* Metrics Grid Layout */
+.metrics-box-grid {
+  display: grid;
+  gap: 0;
+}
+
+.metrics-box-grid.cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.metrics-box-grid.cols-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* Individual Metric Cells */
+.metric-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 0.5rem;
+  text-align: center;
+  border-right: 1px solid;
+  border-bottom: 1px solid;
+}
+
+.metric-cell:last-child {
+  border-right: none;
+}
+
+.stats-panel.dark .metric-cell {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.stats-panel.light .metric-cell {
+  border-color: #e8e8e8;
+}
+
+/* Remove bottom border from last row */
+.metrics-box-grid.cols-3 .metric-cell:nth-child(n+1):nth-last-child(-n+3),
+.metrics-box-grid.cols-3 .metric-cell:nth-child(n+1):nth-last-child(-n+3) ~ .metric-cell,
+.metrics-box-grid.cols-4 .metric-cell:nth-child(n+1):nth-last-child(-n+4),
+.metrics-box-grid.cols-4 .metric-cell:nth-child(n+1):nth-last-child(-n+4) ~ .metric-cell {
+  border-bottom: none;
+}
+
+.metric-cell-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.stats-panel.dark .metric-cell-value {
+  color: #fff;
+}
+
+.stats-panel.light .metric-cell-value {
+  color: #333;
+}
+
+.metric-cell-label {
+  font-size: 0.65rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-top: 0.25rem;
+}
+
+.stats-panel.dark .metric-cell-label {
+  color: #888;
+}
+
+.stats-panel.light .metric-cell-label {
+  color: #777;
+}
+
+/* Metrics Row - for key-value pairs */
+.metrics-box-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid;
+}
+
+.metrics-box-row:last-child {
+  border-bottom: none;
+}
+
+.stats-panel.dark .metrics-box-row {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.stats-panel.light .metrics-box-row {
+  border-bottom-color: #e8e8e8;
+}
+
+.metrics-row-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.stats-panel.dark .metrics-row-label {
+  color: #999;
+}
+
+.stats-panel.light .metrics-row-label {
+  color: #666;
+}
+
+.metrics-row-value {
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-panel.dark .metrics-row-value {
+  color: #e0e0e0;
+}
+
+.stats-panel.light .metrics-row-value {
+  color: #333;
+}
+
+.metrics-row-value.code {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}
+
+.stats-panel.dark .metrics-row-value.code {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.stats-panel.light .metrics-row-value.code {
+  background: #e8e8e8;
+}
+
+/* I/O specific styling */
+.io-row .io-value {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.io-up {
+  color: #4facfe;
+}
+
+.io-down {
+  color: #43e97b;
+}
+
+.warning-row {
+  background: rgba(255, 152, 0, 0.08);
+}
+
+.stats-panel.dark .warning-row {
+  background: rgba(255, 152, 0, 0.12);
+}
+
+/* Temperature color indicators */
+.metric-cell-value.temp-cool {
+  color: #4caf50 !important;
+}
+
+.metric-cell-value.temp-warm {
+  color: #ff9800 !important;
+}
+
+.metric-cell-value.temp-hot {
+  color: #ff5722 !important;
+}
+
+.metric-cell-value.temp-critical {
+  color: #f44336 !important;
+  animation: pulse-warning 1.5s ease-in-out infinite;
+}
+
+/* CPU throttling indicator */
+.metric-cell-value.throttled {
+  color: #ff9800 !important;
+}
+
+/* Swap warning */
+.metric-cell-value.swap-warning {
+  color: #ff9800 !important;
+}
+
+/* Network errors styling */
+.metrics-row-value.network-errors {
+  color: #ff9800 !important;
+  font-size: 0.75rem;
+}
+
+/* Subtle pulse animation for critical values */
+@keyframes pulse-warning {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Legacy support - keep old classes working */
 .node-details-metrics {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

@@ -41,6 +41,39 @@ const formatRelativeTime = (timestamp: number | string | undefined): string => {
   return `${days}d ago`;
 };
 
+// Format uptime in a human-readable format (e.g., "5d 3h 20m")
+const formatUptime = (uptimeSeconds: number | undefined): string => {
+  if (uptimeSeconds === undefined || uptimeSeconds < 0) return '—';
+  
+  const days = Math.floor(uptimeSeconds / 86400);
+  const hours = Math.floor((uptimeSeconds % 86400) / 3600);
+  const minutes = Math.floor((uptimeSeconds % 3600) / 60);
+  
+  if (days > 0) {
+    return `${days}d ${hours}h`;
+  }
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes}m`;
+};
+
+// Get temperature status class based on temperature value
+const getTempClass = (temp: number | undefined, critical: number | undefined): string => {
+  if (temp === undefined) return '';
+  const threshold = critical || 85; // Default critical threshold
+  if (temp >= threshold * 0.9) return 'temp-critical';
+  if (temp >= 65) return 'temp-hot';
+  if (temp >= 50) return 'temp-warm';
+  return 'temp-cool';
+};
+
+// Check if CPU is throttling (current freq significantly below max)
+const isThrottling = (current: number | undefined, max: number | undefined): boolean => {
+  if (current === undefined || max === undefined || max <= 0) return false;
+  return current < max * 0.85; // Less than 85% of max frequency
+};
+
 interface StatsPanelProps {
   stats: ClusterStats | null;
   nodes: Node[];
@@ -154,51 +187,142 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
                 </div>
               )}
 
-              <div className="node-details-metrics">
-                <div className="node-detail-metric">
-                  <span className="node-detail-label">CPU</span>
-                  <span className="node-detail-value">
-                    {selectedNode.cpu_percent != null ? `${selectedNode.cpu_percent.toFixed(1)}%` : '—'}
-                  </span>
+              {/* System Overview Box */}
+              <div className="metrics-box">
+                <div className="metrics-box-header">System</div>
+                <div className="metrics-box-grid cols-4">
+                  <div className="metric-cell">
+                    <span className="metric-cell-value">
+                      {selectedNode.cpu_percent != null ? `${selectedNode.cpu_percent.toFixed(1)}%` : '—'}
+                    </span>
+                    <span className="metric-cell-label">CPU</span>
+                  </div>
+                  <div className="metric-cell">
+                    <span className="metric-cell-value">
+                      {selectedNode.memory_percent != null ? `${selectedNode.memory_percent.toFixed(1)}%` : '—'}
+                    </span>
+                    <span className="metric-cell-label">Memory</span>
+                  </div>
+                  <div className="metric-cell">
+                    <span className="metric-cell-value">
+                      {selectedNode.disk_percent != null ? `${selectedNode.disk_percent.toFixed(1)}%` : '—'}
+                    </span>
+                    <span className="metric-cell-label">Disk</span>
+                  </div>
+                  {selectedNode.swap_percent != null && selectedNode.swap_percent > 0 ? (
+                    <div className="metric-cell">
+                      <span className={`metric-cell-value ${selectedNode.swap_percent > 50 ? 'swap-warning' : ''}`}>
+                        {selectedNode.swap_percent.toFixed(1)}%
+                      </span>
+                      <span className="metric-cell-label">Swap</span>
+                    </div>
+                  ) : (
+                    <div className="metric-cell">
+                      <span className="metric-cell-value">{selectedNode.process_count ?? '—'}</span>
+                      <span className="metric-cell-label">Procs</span>
+                    </div>
+                  )}
                 </div>
-                <div className="node-detail-metric">
-                  <span className="node-detail-label">Memory</span>
-                  <span className="node-detail-value">
-                    {selectedNode.memory_percent != null ? `${selectedNode.memory_percent.toFixed(1)}%` : '—'}
-                  </span>
-                </div>
-                <div className="node-detail-metric">
-                  <span className="node-detail-label">Disk</span>
-                  <span className="node-detail-value">
-                    {selectedNode.disk_percent != null ? `${selectedNode.disk_percent.toFixed(1)}%` : '—'}
-                  </span>
-                </div>
+                {selectedNode.load_avg_1m != null && (
+                  <div className="metrics-box-row">
+                    <span className="metrics-row-label">Load</span>
+                    <span className="metrics-row-value">
+                      {selectedNode.load_avg_1m.toFixed(2)} · {selectedNode.load_avg_5m?.toFixed(2) ?? '—'} · {selectedNode.load_avg_15m?.toFixed(2) ?? '—'}
+                    </span>
+                  </div>
+                )}
+                {selectedNode.uptime_seconds != null && (
+                  <div className="metrics-box-row">
+                    <span className="metrics-row-label">Uptime</span>
+                    <span className="metrics-row-value">{formatUptime(selectedNode.uptime_seconds)}</span>
+                  </div>
+                )}
               </div>
 
-              {(selectedNode.network_tx_bytes_per_sec != null ||
-                selectedNode.network_rx_bytes_per_sec != null) && (
-                <div className="node-detail-item">
-                  <span className="node-detail-label">Network</span>
-                  <span className="node-detail-value">
-                    ⬆ {formatBytesPerSecond(selectedNode.network_tx_bytes_per_sec)} · ⬇{' '}
-                    {formatBytesPerSecond(selectedNode.network_rx_bytes_per_sec)}
-                  </span>
+              {/* Hardware Box - Temperature, Fan, Frequency */}
+              {(selectedNode.cpu_temp_celsius != null || selectedNode.fan_rpm != null || selectedNode.cpu_freq_mhz != null) && (
+                <div className="metrics-box hardware">
+                  <div className="metrics-box-header">Hardware</div>
+                  <div className="metrics-box-grid cols-3">
+                    {selectedNode.cpu_temp_celsius != null && (
+                      <div className="metric-cell">
+                        <span className={`metric-cell-value ${getTempClass(selectedNode.cpu_temp_celsius, selectedNode.temp_critical)}`}>
+                          {selectedNode.cpu_temp_celsius.toFixed(0)}°C
+                        </span>
+                        <span className="metric-cell-label">🌡️ Temp</span>
+                      </div>
+                    )}
+                    {selectedNode.fan_rpm != null && (
+                      <div className="metric-cell">
+                        <span className="metric-cell-value">{selectedNode.fan_rpm}</span>
+                        <span className="metric-cell-label">🌀 RPM</span>
+                      </div>
+                    )}
+                    {selectedNode.cpu_freq_mhz != null && (
+                      <div className="metric-cell">
+                        <span className={`metric-cell-value ${isThrottling(selectedNode.cpu_freq_mhz, selectedNode.cpu_freq_max_mhz) ? 'throttled' : ''}`}>
+                          {(selectedNode.cpu_freq_mhz / 1000).toFixed(1)}G{isThrottling(selectedNode.cpu_freq_mhz, selectedNode.cpu_freq_max_mhz) && '⚠️'}
+                        </span>
+                        <span className="metric-cell-label">⚡ Freq</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
-              <div className="node-detail-item">
-                <span className="node-detail-label">Last seen</span>
-                <span className="node-detail-value">
-                  {formatRelativeTime(selectedNode.last_seen_timestamp ?? selectedNode.last_seen)}
-                </span>
-              </div>
-
-              {selectedNode.kubelet_version && (
-                <div className="node-detail-item">
-                  <span className="node-detail-label">Kubelet</span>
-                  <code className="node-detail-value">{selectedNode.kubelet_version}</code>
+              {/* I/O Box - Network and Disk */}
+              {(selectedNode.network_tx_bytes_per_sec != null || selectedNode.disk_read_bytes_per_sec != null) && (
+                <div className="metrics-box io">
+                  <div className="metrics-box-header">I/O</div>
+                  {(selectedNode.network_tx_bytes_per_sec != null || selectedNode.network_rx_bytes_per_sec != null) && (
+                    <div className="metrics-box-row io-row">
+                      <span className="metrics-row-label">Net</span>
+                      <span className="metrics-row-value io-value">
+                        <span className="io-up">⬆ {formatBytesPerSecond(selectedNode.network_tx_bytes_per_sec)}</span>
+                        <span className="io-down">⬇ {formatBytesPerSecond(selectedNode.network_rx_bytes_per_sec)}</span>
+                      </span>
+                    </div>
+                  )}
+                  {(selectedNode.disk_read_bytes_per_sec != null || selectedNode.disk_write_bytes_per_sec != null) && (
+                    <div className="metrics-box-row io-row">
+                      <span className="metrics-row-label">Disk</span>
+                      <span className="metrics-row-value io-value">
+                        <span className="io-up">⬆ {formatBytesPerSecond(selectedNode.disk_write_bytes_per_sec)}</span>
+                        <span className="io-down">⬇ {formatBytesPerSecond(selectedNode.disk_read_bytes_per_sec)}</span>
+                      </span>
+                    </div>
+                  )}
+                  {((selectedNode.network_errin != null && selectedNode.network_errin > 0) ||
+                    (selectedNode.network_errout != null && selectedNode.network_errout > 0) ||
+                    (selectedNode.network_dropin != null && selectedNode.network_dropin > 0)) && (
+                    <div className="metrics-box-row io-row warning-row">
+                      <span className="metrics-row-label">⚠️ Errors</span>
+                      <span className="metrics-row-value network-errors">
+                        {selectedNode.network_errin != null && selectedNode.network_errin > 0 && `Err↓${selectedNode.network_errin} `}
+                        {selectedNode.network_errout != null && selectedNode.network_errout > 0 && `Err↑${selectedNode.network_errout} `}
+                        {selectedNode.network_dropin != null && selectedNode.network_dropin > 0 && `Drop↓${selectedNode.network_dropin.toLocaleString()}`}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
+
+              {/* Info Box - Static details */}
+              <div className="metrics-box info">
+                <div className="metrics-box-header">Info</div>
+                <div className="metrics-box-row">
+                  <span className="metrics-row-label">Last seen</span>
+                  <span className="metrics-row-value">
+                    {formatRelativeTime(selectedNode.last_seen_timestamp ?? selectedNode.last_seen)}
+                  </span>
+                </div>
+                {selectedNode.kubelet_version && (
+                  <div className="metrics-box-row">
+                    <span className="metrics-row-label">Kubelet</span>
+                    <code className="metrics-row-value code">{selectedNode.kubelet_version}</code>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </>
