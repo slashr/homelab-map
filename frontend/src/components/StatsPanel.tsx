@@ -1,8 +1,30 @@
-import React, { memo } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import { ClusterStats, Node } from '../types';
 import { formatBytesPerSecond } from '../utils/format';
 import { getCharacterFromNodeName, getCharacterImage, getCharacterQuote } from '../utils/characterUtils';
 import './StatsPanel.css';
+
+// Format a timestamp as relative time (e.g., "2s ago", "5m ago")
+const formatRelativeTime = (timestamp: string): string => {
+  const now = Date.now();
+  const then = new Date(timestamp).getTime();
+  const diffMs = now - then;
+  
+  if (isNaN(then)) return 'unknown';
+  
+  const seconds = Math.floor(diffMs / 1000);
+  if (seconds < 0) return 'just now';
+  if (seconds < 60) return `${seconds}s ago`;
+  
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+};
 
 interface StatsPanelProps {
   stats: ClusterStats | null;
@@ -27,6 +49,18 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
   isOpen = true,
   onClose,
 }) => {
+  // Timer to trigger re-renders for live "last seen" updates
+  const [, setTick] = useState(0);
+  
+  useEffect(() => {
+    // Update every second to keep "last seen" times fresh
+    const interval = setInterval(() => {
+      setTick(t => t + 1);
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
   if (!stats) {
     return null;
   }
@@ -265,7 +299,9 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
               >
                 <div className="node-item-header">
                   <div className="node-name">{node.name}</div>
-                  <div className="node-status">{node.status}</div>
+                  <div className={`node-last-seen status-${node.status}`}>
+                    {formatRelativeTime(node.last_seen)}
+                  </div>
                 </div>
                 {(node.network_tx_bytes_per_sec !== undefined ||
                   node.network_rx_bytes_per_sec !== undefined) && (

@@ -446,6 +446,32 @@
   font-weight: 600;
 }
 
+.node-last-seen {
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-panel.dark .node-last-seen {
+  color: #aaa;
+}
+
+.stats-panel.light .node-last-seen {
+  color: #666;
+}
+
+.node-last-seen.status-online {
+  color: #4caf50;
+}
+
+.node-last-seen.status-warning {
+  color: #ff9800;
+}
+
+.node-last-seen.status-offline {
+  color: #f44336;
+}
+
 .node-throughput {
   display: flex;
   justify-content: space-between;
