@@ -30,6 +30,31 @@
   overflow: hidden;
 }
 
+.connection-cap-indicator {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.75rem;
+  border-radius: 999px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.connection-cap-indicator.dark {
+  background: rgba(6, 10, 24, 0.85);
+  color: #e7ebff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.connection-cap-indicator.light {
+  background: rgba(255, 255, 255, 0.85);
+  color: #1a1a1a;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
 .flat-map-svg {
   width: 100%;
   height: 100%;
@@ -147,4 +172,3 @@
 .arc-tooltip__row strong {
   font-weight: 600;
 }
-
