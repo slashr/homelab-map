@@ -59,17 +59,24 @@ function App() {
       setShowPasswordModal(false);
       setPasswordModal({ passwordInput: '', passwordError: false });
     } catch (error) {
-      // Only treat 401 (Unauthorized) as invalid password
-      // 404 (node not found) means nodes aren't loaded yet - allow auth to proceed
-      if (axios.isAxiosError(error) && error.response?.status === 401) {
-        setPasswordModal(prev => ({ ...prev, passwordError: true }));
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        if (status === 401) {
+          // Invalid password
+          setPasswordModal(prev => ({ ...prev, passwordError: true }));
+        } else if (status === 404) {
+          // Node not found - nodes aren't loaded yet, allow auth to proceed
+          setInteractivePassword(passwordModal.passwordInput);
+          setInteractiveMode(true);
+          setShowPasswordModal(false);
+          setPasswordModal({ passwordInput: '', passwordError: false });
+        } else {
+          // 503 (not configured) or other server errors - show as error
+          setPasswordModal(prev => ({ ...prev, passwordError: true }));
+        }
       } else {
-        // For other errors (404, network), assume password is valid and enable mode
-        // The actual quote request will fail gracefully if there's a real issue
-        setInteractivePassword(passwordModal.passwordInput);
-        setInteractiveMode(true);
-        setShowPasswordModal(false);
-        setPasswordModal({ passwordInput: '', passwordError: false });
+        // Network error - show as error
+        setPasswordModal(prev => ({ ...prev, passwordError: true }));
       }
     }
   };
@@ -351,6 +358,10 @@ function App() {
           onClose={() => setSidebarOpen(false)}
           interactiveMode={interactiveMode}
           interactivePassword={interactivePassword}
+          onAuthFailure={() => {
+            setInteractiveMode(false);
+            setInteractivePassword('');
+          }}
         />
         <Suspense fallback={<div className="map-loading">Loading map...</div>}>
           <DeckGLMap

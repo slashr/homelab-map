@@ -127,6 +127,7 @@ interface StatsPanelProps {
   onClose?: () => void;
   interactiveMode?: boolean;
   interactivePassword?: string;
+  onAuthFailure?: () => void;  // Called when 401 received on quote fetch
 }
 
 const StatsPanel: React.FC<StatsPanelProps> = ({
@@ -141,6 +142,7 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
   onClose,
   interactiveMode = false,
   interactivePassword = '',
+  onAuthFailure,
 }) => {
   const [quote, setQuote] = useState<string | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
@@ -178,6 +180,10 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
       incrementClickCount();
       setClicksRemaining(DAILY_QUOTE_LIMIT - getClickCount());
     } catch (error) {
+      // Handle 401 - password invalidated, exit interactive mode
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        onAuthFailure?.();
+      }
       console.warn('Failed to fetch AI quote:', error);
     } finally {
       setQuoteLoading(false);
