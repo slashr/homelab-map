@@ -21,7 +21,24 @@ export const mockNodes: Node[] = [
     network_rx_bytes_per_sec: 2048000,
     last_seen_timestamp: mockNow - 5,
     last_seen: '5s ago',
-    kubelet_version: 'v1.28.0'
+    kubelet_version: 'v1.28.0',
+    // Extended metrics - RPi 5 with active cooling
+    cpu_temp_celsius: 47.5,
+    temp_critical: 85,
+    fan_rpm: 1120,
+    cpu_freq_mhz: 2400,
+    cpu_freq_max_mhz: 2400,
+    uptime_seconds: 3212343,  // ~37 days
+    load_avg_1m: 0.22,
+    load_avg_5m: 0.25,
+    load_avg_15m: 0.18,
+    swap_percent: 44.5,
+    memory_total_bytes: 8256512000,
+    memory_available_bytes: 4904288000,
+    disk_read_bytes_per_sec: 102400,
+    disk_write_bytes_per_sec: 512000,
+    network_dropin: 5247926,
+    process_count: 592
   },
   {
     name: 'jim-2',
@@ -40,7 +57,20 @@ export const mockNodes: Node[] = [
     network_rx_bytes_per_sec: 1024000,
     last_seen_timestamp: mockNow - 3,
     last_seen: '3s ago',
-    kubelet_version: 'v1.28.0'
+    kubelet_version: 'v1.28.0',
+    // Extended metrics - Cloud VM (no temp/fan)
+    cpu_freq_mhz: 2200,
+    cpu_freq_max_mhz: 2200,
+    uptime_seconds: 1450885,  // ~17 days
+    load_avg_1m: 0.26,
+    load_avg_5m: 0.31,
+    load_avg_15m: 0.35,
+    swap_percent: 0,
+    memory_total_bytes: 1073741824,
+    memory_available_bytes: 524288000,
+    disk_read_bytes_per_sec: 51200,
+    disk_write_bytes_per_sec: 204800,
+    process_count: 156
   },
   {
     name: 'dwight-3',
@@ -59,7 +89,24 @@ export const mockNodes: Node[] = [
     network_rx_bytes_per_sec: 1536000,
     last_seen_timestamp: mockNow - 7,
     last_seen: '7s ago',
-    kubelet_version: 'v1.27.5'
+    kubelet_version: 'v1.27.5',
+    // Extended metrics - RPi 4 (passive cooling, warmer)
+    cpu_temp_celsius: 64.3,
+    temp_critical: 110,
+    cpu_freq_mhz: 700,  // Throttled!
+    cpu_freq_max_mhz: 1500,
+    uptime_seconds: 864000,  // 10 days
+    load_avg_1m: 1.85,
+    load_avg_5m: 1.42,
+    load_avg_15m: 1.21,
+    swap_percent: 62.5,  // High swap usage!
+    memory_total_bytes: 4294967296,
+    memory_available_bytes: 1073741824,
+    disk_read_bytes_per_sec: 25600,
+    disk_write_bytes_per_sec: 102400,
+    network_errin: 5,
+    network_dropin: 12345,
+    process_count: 423
   },
   {
     name: 'angela-4',
@@ -78,7 +125,19 @@ export const mockNodes: Node[] = [
     network_rx_bytes_per_sec: 4096000,
     last_seen_timestamp: mockNow - 2,
     last_seen: '2s ago',
-    kubelet_version: 'v1.28.0'
+    kubelet_version: 'v1.28.0',
+    // Extended metrics - GCP VM
+    cpu_freq_mhz: 2199.998,
+    uptime_seconds: 259200,  // 3 days
+    load_avg_1m: 0.08,
+    load_avg_5m: 0.12,
+    load_avg_15m: 0.10,
+    swap_percent: 0,
+    memory_total_bytes: 2147483648,
+    memory_available_bytes: 1073741824,
+    disk_read_bytes_per_sec: 10240,
+    disk_write_bytes_per_sec: 51200,
+    process_count: 89
   },
   {
     name: 'stanley-5',
@@ -97,7 +156,20 @@ export const mockNodes: Node[] = [
     network_rx_bytes_per_sec: 3072000,
     last_seen_timestamp: mockNow - 4,
     last_seen: '4s ago',
-    kubelet_version: 'v1.27.5'
+    kubelet_version: 'v1.27.5',
+    // Extended metrics - Oracle ARM
+    cpu_freq_mhz: 2500,
+    cpu_freq_max_mhz: 2500,
+    uptime_seconds: 5184000,  // 60 days
+    load_avg_1m: 0.45,
+    load_avg_5m: 0.52,
+    load_avg_15m: 0.48,
+    swap_percent: 0,
+    memory_total_bytes: 25769803776,
+    memory_available_bytes: 20000000000,
+    disk_read_bytes_per_sec: 204800,
+    disk_write_bytes_per_sec: 1024000,
+    process_count: 1567
   },
   {
     name: 'phyllis-6',
@@ -116,7 +188,23 @@ export const mockNodes: Node[] = [
     network_rx_bytes_per_sec: 1792000,
     last_seen_timestamp: mockNow - 6,
     last_seen: '6s ago',
-    kubelet_version: 'v1.28.0'
+    kubelet_version: 'v1.28.0',
+    // Extended metrics - RPi 5 cool
+    cpu_temp_celsius: 42.1,
+    temp_critical: 85,
+    fan_rpm: 850,
+    cpu_freq_mhz: 2400,
+    cpu_freq_max_mhz: 2400,
+    uptime_seconds: 172800,  // 2 days
+    load_avg_1m: 0.05,
+    load_avg_5m: 0.08,
+    load_avg_15m: 0.06,
+    swap_percent: 12.3,
+    memory_total_bytes: 8589934592,
+    memory_available_bytes: 6442450944,
+    disk_read_bytes_per_sec: 5120,
+    disk_write_bytes_per_sec: 25600,
+    process_count: 312
   },
   {
     name: 'toby-7',
@@ -135,7 +223,23 @@ export const mockNodes: Node[] = [
     network_rx_bytes_per_sec: 512000,
     last_seen_timestamp: mockNow - 45,
     last_seen: '45s ago',
-    kubelet_version: 'v1.27.5'
+    kubelet_version: 'v1.27.5',
+    // Extended metrics - stressed node
+    cpu_freq_mhz: 1800,
+    cpu_freq_max_mhz: 2200,  // Slight throttling
+    uptime_seconds: 86400,  // 1 day
+    load_avg_1m: 3.25,
+    load_avg_5m: 2.87,
+    load_avg_15m: 2.45,
+    swap_percent: 78.5,  // High swap!
+    memory_total_bytes: 1073741824,
+    memory_available_bytes: 107374182,
+    disk_read_bytes_per_sec: 512000,
+    disk_write_bytes_per_sec: 2048000,
+    network_errin: 15,
+    network_errout: 3,
+    network_dropin: 98765,
+    process_count: 234
   }
 ];
 
