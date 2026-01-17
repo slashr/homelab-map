@@ -33,7 +33,21 @@ export const getLatencyQuality = (latency: number): string => {
 };
 
 /**
- * Character name to display name mapping
+ * Characters with available images in public/characters/
+ */
+const AVAILABLE_CHARACTERS = new Set([
+  'michael',
+  'jim',
+  'dwight',
+  'angela',
+  'stanley',
+  'phyllis',
+  'toby',
+  'pam',
+]);
+
+/**
+ * Character name to display name mapping (fallback for UI Avatars)
  */
 const CHARACTER_NAMES: Record<string, string> = {
   michael: 'Michael+Scott',
@@ -43,10 +57,11 @@ const CHARACTER_NAMES: Record<string, string> = {
   stanley: 'Stanley+Hudson',
   phyllis: 'Phyllis+Vance',
   toby: 'Toby+Flenderson',
+  pam: 'Pam+Beesly',
 };
 
 /**
- * Character name to avatar background color mapping
+ * Character name to avatar background color mapping (fallback for UI Avatars)
  */
 const CHARACTER_COLORS: Record<string, string> = {
   michael: '667eea',
@@ -56,6 +71,7 @@ const CHARACTER_COLORS: Record<string, string> = {
   stanley: 'ff9800',
   phyllis: '4caf50',
   toby: '795548',
+  pam: 'e91e63',
 };
 
 /**
@@ -64,10 +80,18 @@ const CHARACTER_COLORS: Record<string, string> = {
 const DEFAULT_COLOR = '607D8B';
 
 /**
- * Generates UI Avatars URL for a node based on character name
+ * Returns the avatar URL for a node - uses local character images if available,
+ * falls back to UI Avatars for unknown characters
  */
 export const getAvatarUrl = (nodeName: string): string => {
   const character = nodeName.split('-')[0].toLowerCase();
+  
+  // Use local character image if available
+  if (AVAILABLE_CHARACTERS.has(character)) {
+    return `/characters/${character}.png`;
+  }
+  
+  // Fallback to UI Avatars for unknown characters
   const name = CHARACTER_NAMES[character] || character;
   const color = CHARACTER_COLORS[character] || DEFAULT_COLOR;
   return `https://ui-avatars.com/api/?name=${name}&size=128&background=${color}&color=fff&bold=true&rounded=true`;

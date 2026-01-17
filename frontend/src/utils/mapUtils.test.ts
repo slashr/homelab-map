@@ -79,33 +79,38 @@ describe('mapUtils', () => {
   });
 
   describe('getAvatarUrl', () => {
-    it('should generate correct URL for known characters', () => {
-      expect(getAvatarUrl('michael-1')).toBe(
-        'https://ui-avatars.com/api/?name=Michael+Scott&size=128&background=667eea&color=fff&bold=true&rounded=true'
-      );
-      expect(getAvatarUrl('jim-2')).toBe(
-        'https://ui-avatars.com/api/?name=Jim+Halpert&size=128&background=4285F4&color=fff&bold=true&rounded=true'
-      );
-      expect(getAvatarUrl('dwight-3')).toBe(
-        'https://ui-avatars.com/api/?name=Dwight+Schrute&size=128&background=FFC107&color=fff&bold=true&rounded=true'
-      );
+    it('should return local image path for known characters', () => {
+      expect(getAvatarUrl('michael-1')).toBe('/characters/michael.png');
+      expect(getAvatarUrl('jim-2')).toBe('/characters/jim.png');
+      expect(getAvatarUrl('dwight-3')).toBe('/characters/dwight.png');
+      expect(getAvatarUrl('angela-4')).toBe('/characters/angela.png');
+      expect(getAvatarUrl('stanley-5')).toBe('/characters/stanley.png');
+      expect(getAvatarUrl('phyllis-6')).toBe('/characters/phyllis.png');
+      expect(getAvatarUrl('toby-7')).toBe('/characters/toby.png');
+      expect(getAvatarUrl('pam-8')).toBe('/characters/pam.png');
     });
 
-    it('should use default color for unknown characters', () => {
+    it('should fall back to UI Avatars for unknown characters', () => {
       const url = getAvatarUrl('unknown-node');
+      expect(url).toContain('https://ui-avatars.com/api/');
       expect(url).toContain('background=607D8B');
       expect(url).toContain('name=unknown');
     });
 
-    it('should handle uppercase node names', () => {
-      expect(getAvatarUrl('MICHAEL-1')).toBe(
-        'https://ui-avatars.com/api/?name=Michael+Scott&size=128&background=667eea&color=fff&bold=true&rounded=true'
-      );
+    it('should handle uppercase node names for known characters', () => {
+      expect(getAvatarUrl('MICHAEL-1')).toBe('/characters/michael.png');
+      expect(getAvatarUrl('JIM-2')).toBe('/characters/jim.png');
     });
 
     it('should handle node names with multiple hyphens', () => {
-      expect(getAvatarUrl('jim-halpert-office')).toBe(
-        'https://ui-avatars.com/api/?name=Jim+Halpert&size=128&background=4285F4&color=fff&bold=true&rounded=true'
+      expect(getAvatarUrl('jim-halpert-office')).toBe('/characters/jim.png');
+      expect(getAvatarUrl('dwight-schrute-farm')).toBe('/characters/dwight.png');
+    });
+
+    it('should generate UI Avatars URL with correct parameters for unknown characters', () => {
+      const url = getAvatarUrl('creed-bratton-1');
+      expect(url).toBe(
+        'https://ui-avatars.com/api/?name=creed&size=128&background=607D8B&color=fff&bold=true&rounded=true'
       );
     });
   });

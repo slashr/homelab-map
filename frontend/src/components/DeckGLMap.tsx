@@ -54,6 +54,38 @@ const MAP_STYLES = {
 
 const MAX_RENDERED_CONNECTIONS = 200;
 
+// Border colors for node icons - black with white outline for visibility in both modes
+const BORDER_FILL_COLOR = '#000000';
+const BORDER_OUTLINE_COLOR = '#FFFFFF';
+const BORDER_OUTLINE_WIDTH = 6;
+
+// Create a data URL for a black square with white outline (visible in both light and dark modes)
+const createSquareBorderIcon = (): string => {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    // Draw white outline first (larger square)
+    ctx.fillStyle = BORDER_OUTLINE_COLOR;
+    ctx.fillRect(0, 0, size, size);
+    // Draw black fill on top (smaller square, leaving white border)
+    ctx.fillStyle = BORDER_FILL_COLOR;
+    ctx.fillRect(BORDER_OUTLINE_WIDTH, BORDER_OUTLINE_WIDTH, size - BORDER_OUTLINE_WIDTH * 2, size - BORDER_OUTLINE_WIDTH * 2);
+  }
+  return canvas.toDataURL('image/png');
+};
+
+// Cache the border icon URL
+let borderIconUrl: string | null = null;
+const getBorderIconUrl = (): string => {
+  if (!borderIconUrl) {
+    borderIconUrl = createSquareBorderIcon();
+  }
+  return borderIconUrl;
+};
+
 // Initial view state centered on US with global view
 const INITIAL_VIEW_STATE: ViewState = {
   longitude: -40,
@@ -198,6 +230,24 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
         }
       },
     }),
+    // Node border layer (black square with white outline, visible in both light and dark modes)
+    new IconLayer<NodeDatum>({
+      id: 'nodes-border',
+      data: nodeData,
+      getPosition: (d: NodeDatum) => d.coordinates,
+      getIcon: () => ({
+        url: getBorderIconUrl(),
+        width: 128,
+        height: 128,
+        anchorY: 64,
+      }),
+      getSize: (d: NodeDatum) => (d.isSelected ? 56 : 48),
+      pickable: false,
+      sizeScale: 1,
+      sizeUnits: 'pixels',
+      sizeMinPixels: 36,
+      sizeMaxPixels: 68,
+    }),
     // Nodes icon layer
     new IconLayer<NodeDatum>({
       id: 'nodes-icon',
@@ -209,7 +259,7 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
         height: 128,
         anchorY: 64,
       }),
-      getSize: (d: NodeDatum) => (d.isSelected ? 56 : 44),
+      getSize: (d: NodeDatum) => (d.isSelected ? 48 : 40),
       pickable: true,
       onClick: (info: PickingInfo<NodeDatum>) => {
         if (info.object) {
@@ -230,8 +280,8 @@ const DeckGLMap: React.FC<DeckGLMapProps> = ({
       },
       sizeScale: 1,
       sizeUnits: 'pixels',
-      sizeMinPixels: 32,
-      sizeMaxPixels: 64,
+      sizeMinPixels: 28,
+      sizeMaxPixels: 60,
     }),
   ], [arcData, nodeData, onNodeSelect, hoveredArc]);
 
