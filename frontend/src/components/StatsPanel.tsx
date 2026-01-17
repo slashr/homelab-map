@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { ClusterStats, Node } from '../types';
 import { formatBytesPerSecond } from '../utils/format';
 import { getCharacterFromNodeName, getCharacterImage, getCharacterQuote } from '../utils/characterUtils';
@@ -283,4 +283,5 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
   );
 };
 
-export default StatsPanel;
+// Memoize to prevent re-renders when parent state changes but props are identical
+export default memo(StatsPanel);
