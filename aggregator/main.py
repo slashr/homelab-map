@@ -695,17 +695,31 @@ async def _generate_quote(character: str, node_name: str, node_data: dict) -> st
 
     full_name = character_names.get(character, character.title())
 
-    prompt = f"""Generate a short, funny quote in the style of {full_name} from The Office (US). Reference these server metrics humorously:
-{metrics_str}
+    prompt = f"""You are a deadpan SRE comedian writing short quips for a homelab status dashboard.
+Each machine is themed after a character from "The Office" (US).
 
-1-2 sentences max. Output only the quote."""
+Goal:
+Write a single-line quote as if that character is speaking ABOUT THEIR CURRENT METRICS.
+
+Rules:
+- Capture the character's vibe using original wording.
+- Reference 1–2 metrics explicitly (numbers or comparisons).
+- Make it a relevant joke based on the metrics (CPU, memory, temp, disk, uptime, pods, etc.).
+- Length: 8–20 words.
+- No emojis.
+
+Character: {full_name}
+Node: {node_name}
+Metrics: {metrics_str}
+
+Quote:"""
 
     try:
         response = await openai_client.chat.completions.create(
-            model="gpt-4.1-mini",
+            model="gpt-5.2",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=100,
-            temperature=0.8,
+            max_completion_tokens=100,
+            temperature=0.9,
         )
         quote = response.choices[0].message.content.strip()
         # Remove surrounding quotes if present
