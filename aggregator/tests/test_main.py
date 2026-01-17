@@ -570,6 +570,23 @@ def test_compute_metrics_hash_consistency() -> None:
     assert hash1 == hash2
 
 
+def test_compute_metrics_hash_handles_none_values() -> None:
+    """Test that metrics hash handles None values without raising TypeError."""
+    # Node with all None metrics (e.g., newly added or offline node)
+    node_data = {
+        "cpu_percent": None,
+        "memory_percent": None,
+        "uptime_seconds": None,
+        "cpu_temp_celsius": None,
+        "load_avg_1m": None,
+    }
+
+    # Should not raise TypeError
+    result = main._compute_metrics_hash(node_data)
+    assert isinstance(result, str)
+    assert len(result) == 8  # MD5 hex truncated to 8 chars
+
+
 def test_compute_metrics_hash_rounds_values() -> None:
     """Test that small metric changes don't affect hash."""
     # Values within same rounding buckets:
