@@ -306,7 +306,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
       return;
     }
 
-    if (flatMapConnections.length > MAX_ANIMATED_CONNECTIONS) {
+    if (totalConnections > MAX_ANIMATED_CONNECTIONS) {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = undefined;
@@ -405,7 +405,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
       }
       gradientStopsRef.current = null;
     };
-  }, [projection, flatMapConnections.length]);
+  }, [projection, flatMapConnections.length, totalConnections]);
 
   // Pause animation when tab is hidden to save CPU/memory
   useEffect(() => {
@@ -616,7 +616,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
     }
     defs.selectAll('linearGradient.connection-gradient').remove();
     
-    const useSimpleLines = flatMapConnections.length > MAX_ANIMATED_CONNECTIONS;
+    const useSimpleLines = totalConnections > MAX_ANIMATED_CONNECTIONS;
 
     flatMapConnections.forEach((conn, index) => {
       const start = projection([conn.startLng, conn.startLat]);
@@ -877,7 +877,7 @@ const FlatMap: React.FC<FlatMapProps> = ({
         .attr('rx', 8)
         .attr('ry', 8);
     }
-  }, [path, projection, mapSize, countryPolygons, flatMapConnections, nodesWithLocation, selectedNodeId, darkMode, onNodeSelect]);
+  }, [path, projection, mapSize, countryPolygons, flatMapConnections, nodesWithLocation, selectedNodeId, darkMode, onNodeSelect, totalConnections]);
 
   const handleMapClick = useCallback((event: React.MouseEvent) => {
     const target = event.target as Element;
