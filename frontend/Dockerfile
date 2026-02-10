@@ -1,10 +1,12 @@
 # Build stage
-FROM oven/bun:1.3.9-alpine as build
+FROM oven/bun:1.3.9-alpine AS build
 
 WORKDIR /app
 
 # Copy package files
 COPY package.json bun.lock ./
+# patch-package runs in postinstall; copy patches in before installing deps.
+COPY patches ./patches
 
 # Install dependencies
 RUN bun install --frozen-lockfile
