@@ -131,11 +131,12 @@ python main.py
 Visit: http://localhost:8000
 
 #### Frontend
+Requires Bun: https://bun.sh
 ```bash
 cd frontend
-npm install
+bun install
 export REACT_APP_AGGREGATOR_URL=http://localhost:8000
-npm start
+bun run start
 ```
 
 Visit: http://localhost:3000

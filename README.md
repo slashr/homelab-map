@@ -155,10 +155,11 @@ uvicorn main:app --reload
 ```
 
 **Frontend:**
+Requires Bun: https://bun.sh
 ```bash
 cd frontend
-npm install
-REACT_APP_AGGREGATOR_URL=http://localhost:8000 npm start
+bun install
+REACT_APP_AGGREGATOR_URL=http://localhost:8000 bun run start
 ```
 
 **Agent:**
@@ -176,7 +177,7 @@ The frontend supports mock data for development without a running aggregator:
 
 ```bash
 cd frontend
-REACT_APP_USE_MOCK_DATA=true npm start
+REACT_APP_USE_MOCK_DATA=true bun run start
 ```
 
 Or with docker-compose:

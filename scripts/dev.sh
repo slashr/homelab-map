@@ -12,6 +12,23 @@ cd "$PROJECT_ROOT"
 echo "🏠 Homelab Map - Development Mode"
 echo ""
 
+# Resolve bun binary (prefer PATH, fall back to default install location).
+resolve_bun() {
+    if command -v bun &>/dev/null; then
+        echo "bun"
+        return 0
+    fi
+
+    if [ -x "$HOME/.bun/bin/bun" ]; then
+        echo "$HOME/.bun/bin/bun"
+        return 0
+    fi
+
+    echo "❌ Error: Bun is required for frontend development but was not found."
+    echo "   Install: https://bun.sh (default installer puts it in ~/.bun/bin)"
+    exit 1
+}
+
 # Check if docker-compose is available
 if ! command -v docker-compose &> /dev/null && ! command -v docker &> /dev/null; then
     echo "❌ Error: Docker is required for development"
@@ -37,12 +54,13 @@ run_aggregator() {
 run_frontend() {
     echo "🚀 Starting frontend in development mode..."
     cd "$PROJECT_ROOT/frontend"
+    BUN_BIN="$(resolve_bun)"
     if [ ! -d "node_modules" ]; then
         echo "📦 Installing dependencies..."
-        npm install
+        "$BUN_BIN" install
     fi
     echo "✅ Frontend running at http://localhost:3000"
-    REACT_APP_AGGREGATOR_URL=http://localhost:8000 npm start
+    REACT_APP_AGGREGATOR_URL=http://localhost:8000 "$BUN_BIN" run start
 }
 
 # Function to run with docker-compose
@@ -113,4 +131,3 @@ case "${1:-}" in
         exit 1
         ;;
 esac
-
