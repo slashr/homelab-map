@@ -131,10 +131,10 @@ python main.py
 Visit: http://localhost:8000
 
 #### Frontend
-Requires Bun: https://bun.sh
+Requires Bun >= 1.3.9: https://bun.sh
 ```bash
 cd frontend
-bun install
+bun install --frozen-lockfile
 export REACT_APP_AGGREGATOR_URL=http://localhost:8000
 bun run start
 ```

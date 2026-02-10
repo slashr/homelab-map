@@ -48,30 +48,30 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: '18'
+          bun-version: "1.3.9"
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm install
+        run: bun install --frozen-lockfile
 
       - name: Lint frontend
         working-directory: frontend
-        run: npm run lint || (echo "Linting failed. Run 'npm run lint' locally to see errors." && exit 1)
+        run: bun run lint || (echo "Linting failed. Run 'bun run lint' locally to see errors." && exit 1)
 
       - name: Type check frontend
         working-directory: frontend
-        run: npm run type-check
+        run: bun run type-check
 
       - name: Build frontend (verify build succeeds)
         working-directory: frontend
-        run: npm run build
+        run: bun run build
         env:
           CI: true
           GENERATE_SOURCEMAP: false
 
       - name: Run frontend test suite
         working-directory: frontend
-        run: npm test -- --watchAll=false --coverage=false --verbose 2>&1 || (echo "Test failed, checking output..." && exit 1)
+        run: bun run test -- --watchAll=false --coverage=false --verbose 2>&1 || (echo "Test failed, checking output..." && exit 1)

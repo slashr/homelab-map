@@ -24,9 +24,9 @@ resolve_bun() {
         return 0
     fi
 
-    echo "❌ Error: Bun is required for frontend development but was not found."
-    echo "   Install: https://bun.sh (default installer puts it in ~/.bun/bin)"
-    exit 1
+    echo "❌ Error: Bun is required for frontend development but was not found." >&2
+    echo "   Install: https://bun.sh (default installer puts it in ~/.bun/bin)" >&2
+    return 1
 }
 
 # Check if docker-compose is available
@@ -54,10 +54,10 @@ run_aggregator() {
 run_frontend() {
     echo "🚀 Starting frontend in development mode..."
     cd "$PROJECT_ROOT/frontend"
-    BUN_BIN="$(resolve_bun)"
+    BUN_BIN="$(resolve_bun)" || exit 1
     if [ ! -d "node_modules" ]; then
         echo "📦 Installing dependencies..."
-        "$BUN_BIN" install
+        "$BUN_BIN" install --frozen-lockfile
     fi
     echo "✅ Frontend running at http://localhost:3000"
     REACT_APP_AGGREGATOR_URL=http://localhost:8000 "$BUN_BIN" run start
