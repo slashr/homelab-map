@@ -47,8 +47,6 @@ build/
 *~
 
 # Docker
-.dockerignore
-
 # Kubernetes
 *.kubeconfig
 

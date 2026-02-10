@@ -42,10 +42,10 @@
    - **Solution:** Swapped the Leaflet stack for `react-globe.gl`, rendered nodes as HTML avatars hovering above the sphere, drew latency arcs for every connection, added a floating info card, and wired sidebar selections into the globe point-of-view animation.
    - **Acceptance Criteria:** Nodes and connections render on a 3D globe in both themes, selecting a node or toggling the sidebar focuses the correct spot, and the card surfaces the same metrics previously shown in the map popup.
 
-7. Fix sidebar width and clear npm audit issues
-   - **Problem:** The stats sidebar collapsed to a sliver after the globe refactor, and `npm audit` flagged nine vulnerabilities (svgo/postcss/webpack-dev-server, etc.) from CRA’s dependency tree.
+7. Fix sidebar width and clear dependency audit issues
+   - **Problem:** The stats sidebar collapsed to a sliver after the globe refactor, and dependency audits flagged nine vulnerabilities (svgo/postcss/webpack-dev-server, etc.) from CRA’s dependency tree.
    - **Solution:** Locked the sidebar’s flex-basis/min-width via the existing clamp variable so it can’t shrink, pinned patched versions of the vulnerable packages with `package.json` overrides, and used `patch-package` to update CRA’s dev-server config to the modern `server`/`setupMiddlewares` API to stay compatible with the new dependencies.
-   - **Acceptance Criteria:** Sidebar width remains stable across breakpoints, `npm audit` reports zero issues, and `npm run build/start` continue working.
+   - **Acceptance Criteria:** Sidebar width remains stable across breakpoints, audits report zero issues, and `bun run build/start` continue working.
 
 8. Polish the 3D globe interactions
    - **Problem:** The globe auto-rotated nonstop, pinch markers weren't clickable, the sphere appeared off-center, and there was little geographic context (no borders/capitals).

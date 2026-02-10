@@ -55,10 +55,8 @@ run_frontend() {
     echo "🚀 Starting frontend in development mode..."
     cd "$PROJECT_ROOT/frontend"
     BUN_BIN="$(resolve_bun)" || exit 1
-    if [ ! -d "node_modules" ]; then
-        echo "📦 Installing dependencies..."
-        "$BUN_BIN" install --frozen-lockfile
-    fi
+    echo "📦 Installing dependencies..."
+    "$BUN_BIN" install --frozen-lockfile
     echo "✅ Frontend running at http://localhost:3000"
     REACT_APP_AGGREGATOR_URL=http://localhost:8000 "$BUN_BIN" run start
 }
