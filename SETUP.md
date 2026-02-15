@@ -13,13 +13,8 @@ This guide will walk you through deploying the homelab-map application to your k
 
 ### 1. Configure Your Docker Registry
 
-Edit the following files and replace `your-registry/` with your actual registry:
-
-```bash
-# k8s/agent-daemonset.yaml
-# k8s/aggregator-deployment.yaml
-# k8s/frontend-deployment.yaml
-```
+Edit your Kubernetes manifests (wherever you keep them) and replace `your-registry/` with
+your actual registry.
 
 Or set the `REGISTRY` environment variable:
 
@@ -73,6 +68,7 @@ export VERSION=v1.0.0
 make deploy
 
 # Or manually:
+export HOMELAB_MAP_MANIFESTS_DIR=/path/to/your/manifests
 ./scripts/deploy.sh
 ```
 
@@ -91,14 +87,11 @@ Then open: http://localhost:3000
 
 #### Option B: Ingress (Production)
 
-1. Update `k8s/ingress.yaml` with your domain:
-```yaml
-- host: homelab-map.yourdomain.com
-```
+1. Update your ingress manifest with your domain (in your own manifests directory).
 
-2. Apply the ingress:
+2. Apply the ingress from your manifests directory (or any file path you maintain):
 ```bash
-kubectl apply -f k8s/ingress.yaml
+kubectl apply -f "$HOMELAB_MAP_MANIFESTS_DIR"
 ```
 
 3. Access via your domain: https://homelab-map.yourdomain.com

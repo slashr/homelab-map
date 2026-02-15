@@ -55,10 +55,13 @@ A real-time visualization tool for monitoring your k3s homelab cluster across mu
    ```
    The agent falls back to Berlin, Germany when these variables are omitted. Find coordinates at https://www.latlong.net/.
 
-2. **Update Docker registry** - Edit image names in `k8s/*.yaml` or set env var:
+2. **Update Docker registry** - Update image names in your Kubernetes manifests (wherever you keep them) or set env var:
    ```bash
    export REGISTRY=docker.io/yourusername
    ```
+   Note: This repo focuses on building images and running locally; Kubernetes manifests may
+   live in a separate deployments repo. If you use `make deploy`, set
+   `HOMELAB_MAP_MANIFESTS_DIR` to the folder containing your manifests.
 
 ### Configuration
 
