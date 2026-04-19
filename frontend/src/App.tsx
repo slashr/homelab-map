@@ -3,6 +3,8 @@ import axios from 'axios';
 import StatsPanel from './components/StatsPanel';
 import { Node, ClusterStats, Connection } from './types';
 import { mockNodes, mockConnections, mockStats } from './mockData';
+import { getAttentionNodes, getNodeTrafficTotal } from './utils/clusterInsights';
+import { formatBytesPerSecond } from './utils/format';
 import './App.css';
 
 // Password modal state
@@ -21,6 +23,28 @@ const REFRESH_INTERVAL = 15000; // 15 seconds (reduced from 10s to lower server 
 const REFRESH_INTERVAL_BACKGROUND = 60000; // 60 seconds when tab is hidden
 const USE_MOCK_DATA = process.env.REACT_APP_USE_MOCK_DATA === 'true' || false;
 
+const formatRefreshAge = (timestamp: number | null): string => {
+  if (!timestamp) {
+    return 'waiting for telemetry';
+  }
+
+  const diffSeconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  if (diffSeconds < 5) {
+    return 'just now';
+  }
+  if (diffSeconds < 60) {
+    return `${diffSeconds}s ago`;
+  }
+
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  if (diffMinutes < 60) {
+    return `${diffMinutes}m ago`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  return `${diffHours}h ago`;
+};
+
 function App() {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [stats, setStats] = useState<ClusterStats | null>(null);
@@ -30,6 +54,8 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [selection, setSelection] = useState<{ id: string; token: number } | null>(null);
   const [zoomOnly, setZoomOnly] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
+  const [usingMockData, setUsingMockData] = useState(USE_MOCK_DATA);
   
   // Load theme preference from localStorage, default to light mode
   const [darkMode, setDarkMode] = useState(() => {
@@ -108,7 +134,10 @@ function App() {
       setNodes(mockNodes);
       setStats(mockStats);
       setConnections(mockConnections);
+      setConnectionsTotal(mockConnections.length);
       setError(null);
+      setUsingMockData(true);
+      setLastUpdatedAt(Date.now());
       setLoading(false);
       return;
     }
@@ -203,6 +232,8 @@ function App() {
       });
 
       setError(null);
+      setUsingMockData(false);
+      setLastUpdatedAt(Date.now());
     } catch (err) {
       console.error('Error fetching data:', err);
       console.log('Falling back to mock data...');
@@ -210,7 +241,10 @@ function App() {
       setNodes(mockNodes);
       setStats(mockStats);
       setConnections(mockConnections);
+      setConnectionsTotal(mockConnections.length);
       setError('Using mock data - aggregator unavailable');
+      setUsingMockData(true);
+      setLastUpdatedAt(Date.now());
     } finally {
       setLoading(false);
     }
@@ -291,6 +325,43 @@ function App() {
     setZoomOnly(false);
   }, []);
 
+  const providerCount = useMemo(
+    () => Object.keys(stats?.providers ?? {}).length,
+    [stats]
+  );
+
+  const attentionNodes = useMemo(() => getAttentionNodes(nodes), [nodes]);
+  const attentionCount = attentionNodes.length;
+
+  const totalTraffic = useMemo(
+    () => nodes.reduce((sum, node) => sum + getNodeTrafficTotal(node), 0),
+    [nodes]
+  );
+
+  const busiestNode = useMemo(() => {
+    return nodes.reduce<Node | null>((busiest, node) => {
+      if (!busiest) {
+        return node;
+      }
+      return getNodeTrafficTotal(node) > getNodeTrafficTotal(busiest) ? node : busiest;
+    }, null);
+  }, [nodes]);
+
+  const onlineRate = useMemo(() => {
+    if (!stats || stats.total_nodes === 0) {
+      return 0;
+    }
+    return Math.round((stats.online_nodes / stats.total_nodes) * 100);
+  }, [stats]);
+
+  const averageLatency = useMemo(() => {
+    if (connections.length === 0) {
+      return 0;
+    }
+    const total = connections.reduce((sum, connection) => sum + connection.latency_ms, 0);
+    return total / connections.length;
+  }, [connections]);
+
   if (loading) {
     return (
       <div className="loading-container">
@@ -304,33 +375,83 @@ function App() {
     <div className={`App ${darkMode ? 'dark-mode' : 'light-mode'}`}>
       <header className="app-header">
         <div className="header-content">
-          <div className="header-left">
-            <button 
-              className="sidebar-toggle"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              aria-label="Toggle sidebar"
-              aria-expanded={sidebarOpen}
-            >
-              ☰
-            </button>
-            <h1>Dunder Mifflin</h1>
+          <div className="header-top-row">
+            <div className="header-left">
+              <button
+                className="sidebar-toggle"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                aria-label="Toggle sidebar"
+                aria-expanded={sidebarOpen}
+              >
+                ☰
+              </button>
+              <div className="brand-block">
+                <div className="brand-kicker">Homelab operations</div>
+                <div className="brand-title-row">
+                  <h1>Dunder Mifflin Atlas</h1>
+                  <span className={`telemetry-pill ${usingMockData ? 'mock' : 'live'}`}>
+                    {usingMockData ? 'Mock telemetry' : 'Live telemetry'}
+                  </span>
+                </div>
+                <p className="brand-subtitle">
+                  {stats?.total_nodes ?? nodes.length} nodes across {providerCount} providers.
+                  {' '}
+                  {attentionCount > 0
+                    ? `${attentionCount} ${attentionCount === 1 ? 'node needs' : 'nodes need'} attention.`
+                    : 'Cluster stable.'}
+                  {' '}
+                  Refreshed {formatRefreshAge(lastUpdatedAt)}.
+                </p>
+              </div>
+            </div>
+            <div className="header-right">
+              <button
+                className={`interactive-toggle ${interactiveMode ? 'active' : ''}`}
+                onClick={() => interactiveMode ? setInteractiveMode(false) : setShowPasswordModal(true)}
+                aria-label="Toggle interactive mode"
+                title={interactiveMode ? 'Disable interactive AI quotes' : 'Enable interactive AI quotes'}
+              >
+                {interactiveMode ? '🎭' : '🔒'}
+              </button>
+              <button
+                className="theme-toggle"
+                onClick={() => setDarkMode(!darkMode)}
+                aria-label="Toggle theme"
+              >
+                {darkMode ? '☀️' : '🌙'}
+              </button>
+            </div>
           </div>
-          <div className="header-right">
-            <button
-              className={`interactive-toggle ${interactiveMode ? 'active' : ''}`}
-              onClick={() => interactiveMode ? setInteractiveMode(false) : setShowPasswordModal(true)}
-              aria-label="Toggle interactive mode"
-              title={interactiveMode ? 'Disable interactive AI quotes' : 'Enable interactive AI quotes'}
-            >
-              {interactiveMode ? '🎭' : '🔒'}
-            </button>
-            <button
-              className="theme-toggle"
-              onClick={() => setDarkMode(!darkMode)}
-              aria-label="Toggle theme"
-            >
-              {darkMode ? '☀️' : '🌙'}
-            </button>
+
+          <div className="header-metrics">
+            <div className="header-metric-card">
+              <span className="header-metric-label">Availability</span>
+              <strong>{onlineRate}%</strong>
+              <span className="header-metric-detail">
+                {stats?.online_nodes ?? 0}/{stats?.total_nodes ?? nodes.length} nodes online
+              </span>
+            </div>
+            <div className="header-metric-card">
+              <span className="header-metric-label">Attention</span>
+              <strong>{attentionCount}</strong>
+              <span className="header-metric-detail">
+                {attentionCount > 0 ? attentionNodes[0].node.name : 'No active alerts'}
+              </span>
+            </div>
+            <div className="header-metric-card">
+              <span className="header-metric-label">Network load</span>
+              <strong>{formatBytesPerSecond(totalTraffic)}</strong>
+              <span className="header-metric-detail">
+                {busiestNode ? `Top talker: ${busiestNode.name}` : 'No traffic yet'}
+              </span>
+            </div>
+            <div className="header-metric-card">
+              <span className="header-metric-label">Latency</span>
+              <strong>{averageLatency.toFixed(1)} ms</strong>
+              <span className="header-metric-detail">
+                {connections.length} rendered links
+              </span>
+            </div>
           </div>
         </div>
         {error && (
