@@ -1,8 +1,9 @@
-import React, { memo, useState, useEffect } from 'react';
+import React, { memo, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { ClusterStats, Node } from '../types';
 import { formatBytesPerSecond } from '../utils/format';
 import { getCharacterFromNodeName, getCharacterImage, getCharacterQuote, capitalizeCharacterName } from '../utils/characterUtils';
+import { getAttentionNodes, getNodeInsight } from '../utils/clusterInsights';
 import './StatsPanel.css';
 
 // Use relative path in production (behind ingress), or env var for local dev
@@ -147,8 +148,35 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
   const [quote, setQuote] = useState<string | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [clicksRemaining, setClicksRemaining] = useState(DAILY_QUOTE_LIMIT - getClickCount());
+  const [nodeSearch, setNodeSearch] = useState('');
 
   const selectedNode = selectedNodeId && showDetails ? nodes.find((node) => node.name === selectedNodeId) : null;
+  const attentionNodes = useMemo(() => getAttentionNodes(nodes, 4), [nodes]);
+  const filteredNodes = useMemo(() => {
+    const query = nodeSearch.trim().toLowerCase();
+
+    return nodes
+      .map((node) => ({ node, insight: getNodeInsight(node) }))
+      .filter(({ node, insight }) => {
+        if (!query) {
+          return true;
+        }
+
+        return [
+          node.name,
+          node.location ?? '',
+          node.provider ?? '',
+          insight.primaryReason ?? '',
+        ].some((value) => value.toLowerCase().includes(query));
+      })
+      .sort((left, right) => {
+        if (right.insight.severity !== left.insight.severity) {
+          return right.insight.severity - left.insight.severity;
+        }
+
+        return left.node.name.localeCompare(right.node.name);
+      });
+  }, [nodeSearch, nodes]);
 
   // Set static quote when node is selected (no automatic API call)
   useEffect(() => {
@@ -508,27 +536,70 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
             </div>
           </div>
 
+          <div className="stats-section">
+            <div className="section-heading-row">
+              <h2>Attention Queue</h2>
+              <span className={`section-badge ${attentionNodes.length === 0 ? 'quiet' : 'active'}`}>
+                {attentionNodes.length === 0 ? 'Quiet' : `${attentionNodes.length} active`}
+              </span>
+            </div>
+            {attentionNodes.length > 0 ? (
+              <div className="attention-list">
+                {attentionNodes.map((insight) => (
+                  <button
+                    key={insight.node.name}
+                    className={`attention-card status-${insight.node.status}`}
+                    onClick={() => {
+                      onNodeSelect(insight.node.name);
+                      if (onClose && window.innerWidth <= 768) {
+                        onClose();
+                      }
+                    }}
+                  >
+                    <div className="attention-card__header">
+                      <span className="attention-card__name">{insight.node.name}</span>
+                      <span className="attention-card__severity">{insight.severity}</span>
+                    </div>
+                    <div className="attention-card__reason">{insight.primaryReason}</div>
+                    <div className="attention-card__meta">
+                      <span>{insight.node.provider ?? 'Unknown provider'}</span>
+                      <span>{insight.node.location ?? 'Unknown location'}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="attention-empty">
+                All nodes are reporting healthy telemetry right now.
+              </div>
+            )}
+          </div>
+
           <div className="stats-section nodes-list">
-            <h2>Nodes</h2>
-            {nodes.map((node) => (
-              <div
+            <div className="section-heading-row">
+              <h2>Nodes</h2>
+              <span className="section-badge">{filteredNodes.length}</span>
+            </div>
+            <label className="node-search">
+              <span className="node-search__label">Search nodes</span>
+              <input
+                type="text"
+                value={nodeSearch}
+                onChange={(event) => setNodeSearch(event.target.value)}
+                placeholder="Name, provider, location, alert"
+              />
+            </label>
+            {filteredNodes.map(({ node, insight }) => (
+              <button
                 key={node.name}
                 className={`node-item status-${node.status} ${
                   selectedNodeId === node.name ? 'active' : ''
                 }`}
-                role="button"
-                tabIndex={0}
                 onClick={() => {
                   onNodeSelect(node.name);
                   // Close sidebar on mobile after selection
                   if (onClose && window.innerWidth <= 768) {
                     onClose();
-                  }
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    onNodeSelect(node.name);
                   }
                 }}
                 aria-pressed={selectedNodeId === node.name}
@@ -539,6 +610,13 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
                     {formatRelativeTime(node.last_seen_timestamp ?? node.last_seen)}
                   </div>
                 </div>
+                <div className="node-meta">
+                  <span>{node.provider ?? 'Unknown provider'}</span>
+                  <span>{node.location ?? 'Unknown location'}</span>
+                </div>
+                {insight.primaryReason && (
+                  <div className="node-alert-tag">{insight.primaryReason}</div>
+                )}
                 {(node.network_tx_bytes_per_sec !== undefined ||
                   node.network_rx_bytes_per_sec !== undefined) && (
                   <div className="node-throughput">
@@ -546,8 +624,13 @@ const StatsPanel: React.FC<StatsPanelProps> = ({
                     <span>⬇ {formatBytesPerSecond(node.network_rx_bytes_per_sec)}</span>
                   </div>
                 )}
-              </div>
+              </button>
             ))}
+            {filteredNodes.length === 0 && (
+              <div className="attention-empty">
+                No nodes match the current filter.
+              </div>
+            )}
           </div>
         </>
       )}
