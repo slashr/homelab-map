@@ -18,6 +18,8 @@ jobs:
 
       - name: Install and run actionlint
         run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends shellcheck
           case "$RUNNER_ARCH" in
             ARM64) arch=arm64; checksum=cd3dfe5f66887ec6b987752d8d9614e59fd22f39415c5ad9f28374623f41773a ;;
             X64) arch=amd64; checksum=f4c76b71db5755a713e6055cbb0857ed07e103e028bda117817660ebadb4386f ;;
