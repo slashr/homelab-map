@@ -10,17 +10,32 @@ on:
 
 jobs:
   workflow-lint:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","ARM64","homelab-map-always-on"]') }}
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Run actionlint
-        uses: rhysd/actionlint@v1.7.10
+      - name: Install and run actionlint
+        run: |
+          case "$RUNNER_ARCH" in
+            ARM64) arch=arm64; checksum=cd3dfe5f66887ec6b987752d8d9614e59fd22f39415c5ad9f28374623f41773a ;;
+            X64) arch=amd64; checksum=f4c76b71db5755a713e6055cbb0857ed07e103e028bda117817660ebadb4386f ;;
+            *) echo "Unsupported architecture: $RUNNER_ARCH" >&2; exit 1 ;;
+          esac
+          tools_dir="$RUNNER_TEMP/actionlint-tools"
+          mkdir -p "$tools_dir"
+          curl -fsSL --retry 3 \
+            "https://github.com/rhysd/actionlint/releases/download/v1.7.10/actionlint_1.7.10_linux_${arch}.tar.gz" \
+            -o "$tools_dir/actionlint.tar.gz"
+          echo "$checksum  $tools_dir/actionlint.tar.gz" | sha256sum -c -
+          tar -xzf "$tools_dir/actionlint.tar.gz" -C "$tools_dir"
+          "$tools_dir/actionlint" -color
 
   backend-tests:
     needs: workflow-lint
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","ARM64","homelab-map-always-on"]') }}
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -43,7 +58,8 @@ jobs:
 
   frontend-tests:
     needs: workflow-lint
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","ARM64","homelab-map-always-on"]') }}
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
