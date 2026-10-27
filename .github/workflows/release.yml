@@ -31,7 +31,8 @@ env:
 jobs:
   prepare-release:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64, homelab-map-always-on]
+    timeout-minutes: 30
     permissions:
       contents: write
       pull-requests: read
@@ -41,6 +42,10 @@ jobs:
       services: ${{ steps.service_matrix.outputs.services }}
       services_csv: ${{ steps.service_matrix.outputs.services_csv }}
     steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+
       - name: Check out merged commit
         uses: actions/checkout@v4
         with:
@@ -362,7 +367,8 @@ jobs:
       - prepare-release
       - build-and-push
     if: needs.prepare-release.outputs.version != '' && needs.prepare-release.outputs.release_enabled == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64, homelab-map-always-on]
+    timeout-minutes: 30
     permissions:
       contents: read
       pull-requests: write
@@ -373,6 +379,10 @@ jobs:
       HOMELAB_DEPLOYMENTS_BRANCH: ${{ vars.HOMELAB_DEPLOYMENTS_BRANCH != '' && vars.HOMELAB_DEPLOYMENTS_BRANCH || 'main' }}
       HOMELAB_DEPLOYMENTS_SERVICES: ${{ vars.HOMELAB_DEPLOYMENTS_SERVICES != '' && vars.HOMELAB_DEPLOYMENTS_SERVICES || 'agent,aggregator,frontend' }}
     steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+
       - name: Check out homelab-map
         uses: actions/checkout@v4
 

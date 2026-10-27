@@ -36,8 +36,11 @@ env:
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64, homelab-map-build-always-on]
+    timeout-minutes: 90
     env:
+      DOCKER_BUILD_RECORD_UPLOAD: "false"
+      DOCKER_BUILD_SUMMARY: "false"
       VERSION: ${{ inputs.version }}
     strategy:
       matrix:
@@ -49,11 +52,13 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver: remote
+          endpoint: unix:///runner-buildkit/buildkitd.sock
+          platforms: linux/amd64,linux/arm64
+          cleanup: false
 
       - name: Determine registry host
         id: registry
